@@ -1,10 +1,7 @@
-name: Build ScreenOffVN - Debug Mode
+name: Build ScreenOffVN - Debug Siêu Chi Tiết
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ master, main ]
-    tags: [ 'v*.*' ]
 
 jobs:
   build:
@@ -19,45 +16,22 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Chạy build Debug + Kiểm tra chi tiết
+      - name: In ra cau truc project
         shell: cmd
         run: |
           echo ======================================
-          echo Dang build ScreenOffVN Debug - Hack mode full ON
+          echo === CAC FILE GRADLE QUAN TRONG ===
+          dir /s /b *.gradle
           echo ======================================
-          gradlew.bat clean --no-daemon
-          gradlew.bat assembleDebug --no-daemon --stacktrace
+          echo === NOI DUNG settings.gradle ===
+          type settings.gradle 2>nul || echo Khong co settings.gradle
+          echo ======================================
+          echo === NOI DUNG build.gradle (root) ===
+          type build.gradle 2>nul || echo Khong co build.gradle
+          echo ======================================
 
-      - name: Tim toan bo file trong build folder
+      - name: Chay Gradle tasks de xem co task nao build APK khong
         shell: cmd
         run: |
-          echo ======================================
-          echo === TIM TAT CA FILE TRONG THU MUC BUILD ===
-          dir /s /b build\outputs
-          echo ======================================
-          echo === TIM TAT CA FILE .APK O MOI NOI ===
-          dir /s /b *.apk
-          echo ======================================
-
-      - name: Kiem tra cau truc project
-        shell: cmd
-        run: |
-          echo === Cac file gradle quan trong ===
-          dir /b *.gradle
-          dir /b /s settings.gradle
-          dir /b /s build.gradle
-          echo ======================================
-
-      - name: Upload logs neu co loi
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            **/*.log
-            **/build/reports/*
+          gradlew.bat tasks --all | findstr "assemble"
