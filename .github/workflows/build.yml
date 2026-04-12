@@ -33,27 +33,26 @@ jobs:
           gradlew.bat clean --no-daemon
           gradlew.bat assembleDebug --no-daemon
 
-      - name: Kiem tra va tim file APK
+      - name: Tim file APK o moi noi
         shell: cmd
         run: |
           echo ======================================
-          echo Danh sach file APK duoc sinh ra:
-          dir app\build\outputs\apk\debug /s /b
+          echo === TIM TAT CA FILE .APK TRONG PROJECT ===
+          dir /s /b *.apk
           echo ======================================
 
       - name: Copy APK ra goc + rename dep vl
         shell: cmd
         run: |
           echo Dang tim va copy APK...
-          if exist app\build\outputs\apk\debug\app-debug.apk (
-            copy app\build\outputs\apk\debug\app-debug.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
-            echo Copy app-debug.apk thanh cong!
-          ) else (
-            for %%f in (app\build\outputs\apk\debug\*.apk) do (
-              copy "%%f" ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
-              echo Copy file %%f thanh cong!
-            )
+          for /r %%f in (*.apk) do (
+            echo Tim thay: %%f
+            copy "%%f" ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+            echo Copy thanh cong! Ten file: ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+            goto :done
           )
+          echo Khong tim thay file APK nao!
+          :done
 
       - name: Upload APK cho ae tai
         uses: actions/upload-artifact@v4
@@ -69,6 +68,8 @@ jobs:
           name: V${{ github.ref_name }} Latest
           body: |
             Merge pull request tu main
+
+            Tai **ScreenOffVN-v${{ github.ref_name }}.apk** ve xai luon bro! 💥
           artifacts: ScreenOffVN-*.apk
           draft: false
           prerelease: false
