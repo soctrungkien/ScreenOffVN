@@ -1,4 +1,5 @@
-# ScreenOff
-An android app to control your Android's screen to display or not display via Shizuku. This is not the same with pressing power key, since other APPs will CONTINUE working after turning off the screen.
-# How it works
-By reflecting "android.view.SurfaceControl" (the same way with Scrcpy). Check it in "SurfaceControl.java".
+# ScreenOffVN
+Một ứng dụng Android để điều khiển màn hình Android của bạn hiển thị hoặc không hiển thị thông qua Shizuku. Điều này không giống như việc nhấn phím nguồn, vì các ứng dụng khác sẽ TIẾP TỤC hoạt động sau khi màn hình tắt.
+
+# Cách hoạt động
+Bằng cách phản chiếu "android.view.SurfaceControl" (tương tự như Scrcpy). Kiểm tra trong "SurfaceControl.java".
