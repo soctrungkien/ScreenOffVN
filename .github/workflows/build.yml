@@ -1,4 +1,4 @@
-name: Build ScreenOffVN
+name: Build ScreenOffVN - Debug Mode
 
 on:
   workflow_dispatch:
@@ -21,55 +21,43 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Setup Android SDK trên Windows
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Chạy build Debug 🔥
+      - name: Chạy build Debug + Kiểm tra chi tiết
         shell: cmd
         run: |
           echo ======================================
           echo Dang build ScreenOffVN Debug - Hack mode full ON
           echo ======================================
           gradlew.bat clean --no-daemon
-          gradlew.bat assembleDebug --no-daemon
+          gradlew.bat assembleDebug --no-daemon --stacktrace
 
-      - name: Tim file APK o moi noi
+      - name: Tim toan bo file trong build folder
         shell: cmd
         run: |
           echo ======================================
-          echo === TIM TAT CA FILE .APK TRONG PROJECT ===
+          echo === TIM TAT CA FILE TRONG THU MUC BUILD ===
+          dir /s /b build\outputs
+          echo ======================================
+          echo === TIM TAT CA FILE .APK O MOI NOI ===
           dir /s /b *.apk
           echo ======================================
 
-      - name: Copy APK ra goc + rename dep vl
+      - name: Kiem tra cau truc project
         shell: cmd
         run: |
-          echo Dang tim va copy APK...
-          for /r %%f in (*.apk) do (
-            echo Tim thay: %%f
-            copy "%%f" ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
-            echo Copy thanh cong! Ten file: ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
-            goto :done
-          )
-          echo Khong tim thay file APK nao!
-          :done
+          echo === Cac file gradle quan trong ===
+          dir /b *.gradle
+          dir /b /s settings.gradle
+          dir /b /s build.gradle
+          echo ======================================
 
-      - name: Upload APK cho ae tai
+      - name: Upload logs neu co loi
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ScreenOffVN-APK
-          path: ScreenOffVN-*.apk
-
-      - name: Tao GitHub Release V${{ github.ref_name }} Latest
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ github.ref_name }}
-          name: V${{ github.ref_name }} Latest
-          body: |
-            Merge pull request tu main
-
-            Tai **ScreenOffVN-v${{ github.ref_name }}.apk** ve xai luon bro! 💥
-          artifacts: ScreenOffVN-*.apk
-          draft: false
-          prerelease: false
+          name: build-logs
+          path: |
+            **/*.log
+            **/build/reports/*
