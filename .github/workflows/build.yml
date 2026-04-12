@@ -30,6 +30,10 @@ jobs:
           gradlew.bat clean --no-daemon
           gradlew.bat assembleRelease --no-daemon
 
+      - name: Copy APK ra gốc
+        shell: cmd
+        run: copy app\build\outputs\apk\release\app-release-unsigned.apk app-release-unsigned.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
