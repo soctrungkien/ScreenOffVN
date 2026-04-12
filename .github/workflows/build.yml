@@ -30,15 +30,11 @@ jobs:
           gradlew.bat clean --no-daemon
           gradlew.bat assembleRelease --no-daemon
 
-      - name: Rename APK
-        shell: cmd
-        run: copy app\build\outputs\apk\release\app-release-unsigned.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ScreenOffVN-APK-Windows
-          path: ScreenOffVN-*.apk
+          name: ScreenOffVN
+          path: app-release-unsigned.apk
 
       - name: Tạo GitHub Release khi push tag v*
         if: startsWith(github.ref, 'refs/tags/v')
@@ -48,6 +44,6 @@ jobs:
           name: V${{ github.ref_name }} Latest
           body: |
             FILE BUILD
-          artifacts: ScreenOffVN-*.apk
+          artifacts: app-release-unsigned.apk
           draft: false
           prerelease: false
