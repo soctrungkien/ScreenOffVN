@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcutoff">Chạy khi tắt màn hình</string>
+    <string name="shortcuton">Dừng chạy tắt màn hình</string>
+    <string name="mannually_open">Vui lòng bật dịch vụ Hỗ trợ (Accessibility) thủ công</string>
+    <string name="active_first">Vui lòng khởi động dịch vụ Chạy khi tắt màn hình trước</string>
+    <string name="disagree">Từ chối</string>
+    <string name="agree">Đồng ý</string>
+    <string name="privacy">Chính sách bảo mật</string>
+    <string name="privacypolicy">Ứng dụng này sẽ không thu thập, ghi lại hoặc tải lên bất kỳ thông tin nào của bạn.\n</string>
+    <string name="toosmall">Quá nhỏ rồi!</string>
+    <string name="all_ok">Dịch vụ đã được kích hoạt</string>
+    <string name="not_ok">Nhấn để kích hoạt dịch vụ</string>
+    <string name="active_steps">Chạy khi tắt màn hình cần quyền ADB hoặc Root để kích hoạt.\n\nCách kích hoạt qua ADB: Bật Gỡ lỗi USB trên điện thoại và kết nối với máy tính, sau đó chạy lệnh sau trong cửa sổ terminal/cmd:\nadb shell %s\n\nĐối với thiết bị Android 6.0 trở lên, bạn cũng có thể chọn kích hoạt qua Shizuku (về bản chất Shizuku và ADB là giống nhau).\n</string>
+    <string name="need_active">Cần kích hoạt dịch vụ Chạy khi tắt màn hình</string>
+    <string name="copy_cmd">Sao chép lệnh</string>
+    <string name="cmd_copy_finish">Đã sao chép lệnh ADB vào bộ nhớ tạm:\nadb shell %s</string>
+    <string name="by_root">Kích hoạt bằng Root</string>
+    <string name="active_failed">Kích hoạt thất bại</string>
+    <string name="by_shizuku">Kích hoạt bằng Shizuku</string>
+    <string name="key_pressed">Bạn đã nhấn phím %s\nMã phím là %d</string>
+    <string name="shizuku_notrun">Shizuku chưa chạy</string>
+    <string name="help_title">Trợ giúp</string>
+    <string name="help_conntent">Bạn có thể nhấn vào tiêu đề ‘Chạy khi tắt màn hình’ ở giao diện chính để mở lại hướng dẫn này.\n\n\nKhi đang chạy ở chế độ tắt màn hình, mọi ứng dụng sẽ tiếp tục hoạt động giống như khi màn hình đang sáng. Bạn không cần lo lắng về việc hệ thống tự động ngủ sau một thời gian không thao tác; chỉ cần bạn bật Dịch vụ điều khiển tổng thể và Phím ảo (Floating ball), hệ thống sẽ không tự ngủ trừ khi bạn nhấn nút nguồn thủ công.\n\n\nKhi chức năng ‘Nhấc máy sáng màn hình’ được bật, ứng dụng sẽ giám sát sự thay đổi hướng của thiết bị sau khi tắt màn hình. Việc này sẽ làm tiêu tốn một lượng pin cực nhỏ, gần như không đáng kể.\n\n\nLưu ý: Hầu hết các thiết bị sẽ chặn cảm ứng khi màn hình tắt, vì vậy tính năng chạm đúp để sáng màn hình chỉ hoạt động trên một số ít thiết bị (như máy tính bảng Samsung có S-Pen, iQOO 9, Redmi Note 1 LTE, v.v.).\n\n\nMột số ít thiết bị khác chặn cả phím cứng sau khi tắt màn hình, nên tính năng dùng phím âm lượng để sáng màn hình sẽ không hiệu quả (như một số dòng Huawei HarmonyOS hoặc Origin OS). Nếu bạn dùng các dòng máy này, có thể liên hệ với tôi để cùng nghiên cứu cách sử dụng lệnh getevent nhằm phát hiện phím âm lượng.\n\n\nMột số thiết bị màn hình LCD vẫn còn đèn nền sau khi tắt màn hình theo cách này. Tương tự như việc chặn phím hay cảm ứng, đây là do thiết lập của nhà sản xuất, tôi không thể can thiệp. Tuy nhiên, bạn có thể giảm độ sáng màn hình xuống mức tối thiểu trước khi sử dụng để hạn chế đèn nền.</string>
+    <string name="understand">Đã hiểu</string>
+    <string name="start_global_control">Bật điều khiển tổng thể</string>
+    <string name="show_fw">Hiển thị phím ảo</string>
+    <string name="show_only_land">Chỉ hiển thị khi xoay ngang</string>
+    <string name="lock_fw">Khóa vị trí phím ảo</string>
+    <string name="double_tap">Chạm đúp để sáng màn hình</string>
+    <string name="orientation">Nhấc máy sáng màn hình</string>
+    <string name="key_control">Dùng phím cứng điều khiển màn hình</string>
+    <string name="scroff">Tắt màn hình</string>
+    <string name="scron">Sáng màn hình</string>
+    <string name="fw_size">Kích thước phím ảo</string>
+    <string name="fw_tran">Độ trong suốt phím ảo</string>
+    <string name="ori_sensity">Độ nhạy cảm biến nhấc máy</string>
+    <string name="tile">Điều khiển tổng thể</string>
+    <string name="service_closed">Dịch vụ đã đóng</string>
+    <string name="net_ctl">Điều khiển màn hình qua mạng LAN</string>
+</resources>
