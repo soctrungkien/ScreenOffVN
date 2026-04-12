@@ -28,7 +28,7 @@ jobs:
         shell: cmd
         run: |
           gradlew.bat clean --no-daemon
-          gradlew.bat assembleRelease --no-daemon
+          gradlew.bat assembleDebug --no-daemon
 
       - name: Copy APK ra gốc
         shell: cmd
