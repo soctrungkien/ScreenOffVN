@@ -24,7 +24,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build Debug APK (chạy từ module app)
+      - name: Build Debug APK (module app)
         shell: cmd
         run: |
           echo ======================================
@@ -33,26 +33,41 @@ jobs:
           gradlew.bat :app:clean --no-daemon
           gradlew.bat :app:assembleDebug --no-daemon
 
-      - name: Copy APK ra goc + rename dep
+      - name: Tim va Copy APK thong minh
         shell: cmd
-        run: copy app\build\outputs\apk\debug\app-debug.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+        run: |
+          echo === Tim file APK ===
+          dir /s /b app\build\outputs\apk\debug\*.apk
+          echo ======================================
 
-      - name: Upload APK cho ae tải
+          if exist app\build\outputs\apk\debug\app-debug.apk (
+            copy app\build\outputs\apk\debug\app-debug.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+            echo Copy thanh cong! Su dung app-debug.apk
+          ) else (
+            for %%f in (app\build\outputs\apk\debug\*.apk) do (
+              copy "%%f" ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+              echo Copy thanh cong tu file %%\~nxf
+            )
+          )
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ScreenOffVN-APK
           path: ScreenOffVN-*.apk
 
-      - name: Tạo GitHub Release V${{ github.ref_name }} Latest
+      - name: Tao GitHub Release V${{ github.ref_name }} Latest
         if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
           name: V${{ github.ref_name }} Latest
           body: |
-            Merge pull request từ main
+            Merge pull request tu main
 
-            Tải **ScreenOffVN-v${{ github.ref_name }}.apk** về xài luôn bro! 💥
+
+
+            Tai **ScreenOffVN-v${{ github.ref_name }}.apk** ve xai luon bro! 💥
           artifacts: ScreenOffVN-*.apk
           draft: false
           prerelease: false
