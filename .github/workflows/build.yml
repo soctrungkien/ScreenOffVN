@@ -24,7 +24,7 @@ jobs:
       - name: Setup Android SDK trên Windows
         uses: android-actions/setup-android@v3
 
-      - name: Chạy build Debug
+      - name: Chạy build Debug 🔥
         shell: cmd
         run: |
           echo ======================================
@@ -33,24 +33,42 @@ jobs:
           gradlew.bat clean --no-daemon
           gradlew.bat assembleDebug --no-daemon
 
-      - name: Copy APK ra gốc + rename
+      - name: Kiem tra va tim file APK
         shell: cmd
-        run: copy app\build\outputs\apk\debug\app-debug.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+        run: |
+          echo ======================================
+          echo Danh sach file APK duoc sinh ra:
+          dir app\build\outputs\apk\debug /s /b
+          echo ======================================
 
-      - name: Upload APK
+      - name: Copy APK ra goc + rename dep vl
+        shell: cmd
+        run: |
+          echo Dang tim va copy APK...
+          if exist app\build\outputs\apk\debug\app-debug.apk (
+            copy app\build\outputs\apk\debug\app-debug.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+            echo Copy app-debug.apk thanh cong!
+          ) else (
+            for %%f in (app\build\outputs\apk\debug\*.apk) do (
+              copy "%%f" ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+              echo Copy file %%f thanh cong!
+            )
+          )
+
+      - name: Upload APK cho ae tai
         uses: actions/upload-artifact@v4
         with:
           name: ScreenOffVN-APK
           path: ScreenOffVN-*.apk
 
-      - name: Tạo GitHub Release V${{ github.ref_name }} Latest
+      - name: Tao GitHub Release V${{ github.ref_name }} Latest
         if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
           name: V${{ github.ref_name }} Latest
           body: |
-            Build
+            Merge pull request tu main
           artifacts: ScreenOffVN-*.apk
           draft: false
           prerelease: false
