@@ -1,7 +1,10 @@
-name: Build ScreenOffVN - Debug Siêu Chi Tiết
+name: Build ScreenOffVN 🔥
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*.*' ]
 
 jobs:
   build:
@@ -16,22 +19,40 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: gradle
 
-      - name: In ra cau truc project
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Debug APK (chạy từ module app)
         shell: cmd
         run: |
           echo ======================================
-          echo === CAC FILE GRADLE QUAN TRONG ===
-          dir /s /b *.gradle
+          echo Dang build ScreenOffVN Debug - Hack mode full ON
           echo ======================================
-          echo === NOI DUNG settings.gradle ===
-          type settings.gradle 2>nul || echo Khong co settings.gradle
-          echo ======================================
-          echo === NOI DUNG build.gradle (root) ===
-          type build.gradle 2>nul || echo Khong co build.gradle
-          echo ======================================
+          gradlew.bat :app:clean --no-daemon
+          gradlew.bat :app:assembleDebug --no-daemon
 
-      - name: Chay Gradle tasks de xem co task nao build APK khong
+      - name: Copy APK ra goc + rename dep
         shell: cmd
-        run: |
-          gradlew.bat tasks --all | findstr "assemble"
+        run: copy app\build\outputs\apk\debug\app-debug.apk ScreenOffVN-v${{ github.ref_name || 'latest' }}.apk
+
+      - name: Upload APK cho ae tải
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScreenOffVN-APK
+          path: ScreenOffVN-*.apk
+
+      - name: Tạo GitHub Release V${{ github.ref_name }} Latest
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: V${{ github.ref_name }} Latest
+          body: |
+            Merge pull request từ main
+
+            Tải **ScreenOffVN-v${{ github.ref_name }}.apk** về xài luôn bro! 💥
+          artifacts: ScreenOffVN-*.apk
+          draft: false
+          prerelease: false
