@@ -96,12 +96,16 @@ public class MainActivity extends Activity {
                     .setNegativeButton(R.string.agree, (dialogInterface, i) -> {
                         help();
                         sp.edit().putBoolean("first", false).apply();
+                        tryAutoActivate();
                     })
                     .setCancelable(false)
                     .setPositiveButton(R.string.disagree, (dialogInterface, i) -> finish())
                     .show();
 
 
+        } else {
+            // Đảm bảo kích hoạt ngay lập tức
+            tryAutoActivate();
         }
 
         setButtonsOnclick(isNight, sp);
@@ -167,42 +171,20 @@ public class MainActivity extends Activity {
         LinearLayout linearLayout = findViewById(R.id.ll);
         EditText e1 = findViewById(R.id.e1);
         EditText e2 = findViewById(R.id.e2);
-        Switch s1, s2, s3, s4, s5, s6, s7, s8;
+        Switch s1, s6, s7, s8;
         s1 = findViewById(R.id.s1);
-        s2 = findViewById(R.id.s2);
-        s3 = findViewById(R.id.s3);
-        s4 = findViewById(R.id.s4);
-        s5 = findViewById(R.id.s5);
         s6 = findViewById(R.id.s6);
         s7 = findViewById(R.id.s7);
         s8 = findViewById(R.id.s8);
         final String setting = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         s1.setChecked(setting != null && setting.contains(getPackageName()));
-        s2.setChecked(sp.getBoolean("float", true));
-        s3.setChecked(sp.getBoolean("land", false));
-        s4.setChecked(!sp.getBoolean("canmove", true));
-        s5.setChecked(sp.getBoolean("doubleTap", false));
         s6.setChecked(sp.getBoolean("shake", false));
         s7.setChecked(sp.getBoolean("volume", false));
         s8.setChecked(sp.getBoolean("net", false));
-        s3.setEnabled(s2.isChecked());
-        s4.setEnabled(s2.isChecked());
-        s5.setEnabled(s2.isChecked());
-        SeekBar sb = findViewById(R.id.sb);
-        sb.setProgress(sp.getInt("size", 50));
-        EditText eb = findViewById(R.id.eb);
-        eb.setText(String.valueOf(sp.getInt("size", 50)));
-        SeekBar sc = findViewById(R.id.sc);
-        sc.setProgress(sp.getInt("tran", 90));
-        EditText ec = findViewById(R.id.ec);
-        ec.setText(String.valueOf(sp.getInt("tran", 90)));
         SeekBar sd = findViewById(R.id.sd);
         sd.setProgress(sp.getInt("sensity", 10));
         EditText ed = findViewById(R.id.ed);
         ed.setText(String.valueOf(sp.getInt("sensity", 10)));
-        sb.setEnabled(s2.isChecked());
-        sc.setEnabled(s2.isChecked());
-        sd.setEnabled(s2.isChecked());
         s1.setOnCheckedChangeListener((compoundButton, isChecked) -> {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !((PowerManager) getSystemService(Service.POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName()))
@@ -234,18 +216,6 @@ public class MainActivity extends Activity {
             }
 
         });
-        s2.setOnCheckedChangeListener((compoundButton, b) -> {
-            sp.edit().putBoolean("float", b).apply();
-            s3.setEnabled(b);
-            s4.setEnabled(b);
-            s5.setEnabled(b);
-            sb.setEnabled(b);
-            sc.setEnabled(b);
-            sd.setEnabled(b);
-        });
-        s3.setOnCheckedChangeListener((compoundButton, b) -> sp.edit().putBoolean("land", b).apply());
-        s4.setOnCheckedChangeListener((compoundButton, b) -> sp.edit().putBoolean("canmove", !b).apply());
-        s5.setOnCheckedChangeListener((compoundButton, b) -> sp.edit().putBoolean("doubleTap", b).apply());
         s6.setOnCheckedChangeListener((compoundButton, b) -> sp.edit().putBoolean("shake", b).apply());
         s7.setOnCheckedChangeListener((compoundButton, b) -> {
             sp.edit().putBoolean("volume", b).apply();
@@ -260,59 +230,6 @@ public class MainActivity extends Activity {
             sp.edit().putBoolean("net", b).apply();
         });
         if (s1.isChecked() && s8.isChecked()) showNet();
-        sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                sp.edit().putInt("size", i).apply();
-                eb.setText(String.valueOf(i));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-        eb.setOnKeyListener((view, i, keyEvent) -> {
-            if (keyEvent.getKeyCode() == KeyEvent.KEYCODE_ENTER && keyEvent.getAction() == KeyEvent.ACTION_DOWN && eb.getText().length() > 0) {
-                int value = Integer.parseInt(eb.getText().toString());
-                if (value >= 0 && value <= 100) {
-                    sp.edit().putInt("size", value).apply();
-                    sb.setProgress(value);
-                }
-            }
-            return false;
-        });
-
-        sc.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                sp.edit().putInt("tran", i).apply();
-                ec.setText(String.valueOf(i));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-        ec.setOnKeyListener((view, i, keyEvent) -> {
-            if (keyEvent.getKeyCode() == KeyEvent.KEYCODE_ENTER && keyEvent.getAction() == KeyEvent.ACTION_DOWN && ec.getText().length() > 0) {
-                int value = Integer.parseInt(ec.getText().toString());
-                if (value >= 0 && value <= 100) {
-                    sp.edit().putInt("tran", value).apply();
-                    sc.setProgress(value);
-                }
-            }
-            return false;
-        });
-
         sd.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
@@ -406,28 +323,108 @@ public class MainActivity extends Activity {
                 e.printStackTrace();
             }
         });
-        ImageView imageView = findViewById(R.id.iv);
-        final View.OnClickListener onClickListener = view -> {
-            if (isExpand) {
-                linearLayout.removeView(scrollView);
-                ObjectAnimator a2 = ObjectAnimator.ofFloat(imageView, "rotation", 180f, 360f);
-                a2.setDuration(800).setInterpolator(new AccelerateDecelerateInterpolator());
-                a2.start();
-            } else {
-                linearLayout.addView(scrollView);
-                ObjectAnimator a2 = ObjectAnimator.ofFloat(imageView, "rotation", 0f, 180f);
-                a2.setDuration(800).setInterpolator(new AccelerateDecelerateInterpolator());
-                a2.start();
-            }
-            isExpand = !isExpand;
-        };
-        imageView.setOnClickListener(onClickListener);
-        linearLayout.setOnClickListener(onClickListener);
-        findViewById(R.id.lll).setOnClickListener(onClickListener);
-        linearLayout.removeView(scrollView);
 
+        // Luôn luôn mở rộng, không cho phép thu nhỏ
+        isExpand = true;
     }
 
+
+    public static void trySilentActivate(Context context) {
+        if (GlobalService.isScreenOffServiceRunning(context)) return;
+
+        unzipFilesStatic(context);
+        final String path = context.getExternalFilesDir(null).getPath();
+        final String command = "chmod 777 " + path + "/starter.sh && sh " + path + "/starter.sh " + path;
+        final String serviceName = new ComponentName(context.getPackageName(), GlobalService.class.getName()).flattenToString();
+        final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
+
+        new Thread(() -> {
+            // Thử bằng Root trước
+            try {
+                Process p = Runtime.getRuntime().exec("su");
+                java.io.DataOutputStream o = new java.io.DataOutputStream(p.getOutputStream());
+                o.writeBytes(command + "\n" + enableAccCommand + "exit\n");
+                o.flush();
+                o.close();
+                p.waitFor();
+            } catch (Exception ignored) {}
+
+            // Nếu Root thất bại hoặc không có, thử Shizuku
+            if (!GlobalService.isScreenOffServiceRunning(context)) {
+                try {
+                    if (rikka.shizuku.Shizuku.pingBinder()) {
+                        if (rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                            runShizukuCommandStatic(command + "\n" + enableAccCommand);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }).start();
+    }
+
+    private static void runShizukuCommandStatic(String cmd) {
+        try {
+            Process p = rikka.shizuku.Shizuku.newProcess(new String[]{"sh"}, null, null);
+            java.io.OutputStream out = p.getOutputStream();
+            out.write((cmd + "\nexit\n").getBytes());
+            out.flush();
+            out.close();
+        } catch (Exception ignored) {}
+    }
+
+    public static void unzipFilesStatic(Context context) {
+        String path = context.getExternalFilesDir(null).getPath();
+        try {
+            InputStream is = context.getAssets().open("starter.sh");
+            FileOutputStream fileOutputStream = new FileOutputStream(path + "/starter.sh");
+            byte[] buffer = new byte[1024];
+            int byteRead;
+            while (-1 != (byteRead = is.read(buffer))) {
+                fileOutputStream.write(buffer, 0, byteRead);
+            }
+            is.close();
+            fileOutputStream.flush();
+            fileOutputStream.close();
+        } catch (IOException ignored) {}
+
+        try {
+            ZipFile zipFile = new ZipFile(context.getPackageResourcePath());
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.getName().equals("classes.dex")) {
+                    InputStream inputStream = zipFile.getInputStream(entry);
+                    FileOutputStream fos = new FileOutputStream(path + "/ScreenController.dex");
+                    byte[] buffer = new byte[1024];
+                    int len;
+                    while ((len = inputStream.read(buffer)) > 0) {
+                        fos.write(buffer, 0, len);
+                    }
+                    fos.close();
+                    break;
+                }
+            }
+            zipFile.close();
+        } catch (IOException ignored) {}
+
+        try {
+            FileOutputStream off = new FileOutputStream(path + "/scroff.sh");
+            off.write("am broadcast -a action.ScrOff --ez state true".getBytes());
+            off.close();
+            FileOutputStream on = new FileOutputStream(path + "/scron.sh");
+            on.write("am broadcast -a action.ScrOff --ez state false".getBytes());
+            on.close();
+        } catch (IOException ignored) {}
+    }
+
+    private void tryAutoActivate() {
+        if (isServiceOK) return;
+        trySilentActivate(this);
+    }
+
+    private void runShizukuCommand(String cmd) {
+        runShizukuCommandStatic(cmd);
+    }
 
     public void enableScreenOffFunctions() {
         Button button = findViewById(R.id.activate_button);
@@ -452,10 +449,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (isExpand) {
-            findViewById(R.id.iv).performClick();
-        } else
-            finish();
+        finish();
     }
 
     @Override
@@ -494,19 +488,14 @@ public class MainActivity extends Activity {
                 c = true;
             if (e.getClass() == IllegalStateException.class) {
                 b = false;
-                Toast.makeText(this, "shizuku未运行", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.shizuku_notrun, Toast.LENGTH_SHORT).show();
             }
         }
         if (b && c) {
-            try {
-                Process p = Shizuku.newProcess(new String[]{"sh"}, null, null);
-                OutputStream out = p.getOutputStream();
-                out.write(("sh " + getExternalFilesDir(null).getPath() + "/starter.sh\nexit\n").getBytes());
-                out.flush();
-                out.close();
-            } catch (IOException ioException) {
-                Toast.makeText(this, "激活失败", Toast.LENGTH_SHORT).show();
-            }
+            final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
+            final String serviceName = new ComponentName(getPackageName(), GlobalService.class.getName()).flattenToString();
+            final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
+            runShizukuCommand(command + "\n" + enableAccCommand);
         }
 
     }
@@ -572,7 +561,8 @@ public class MainActivity extends Activity {
 
     private void unzipFiles() {
 
-        String file1 = getExternalFilesDir(null).getPath() + "/starter.sh";
+        String path = getExternalFilesDir(null).getPath();
+        String file1 = path + "/starter.sh";
         try {
             InputStream is = getAssets().open("starter.sh");
             FileOutputStream fileOutputStream = new FileOutputStream(file1);
@@ -586,7 +576,7 @@ public class MainActivity extends Activity {
             fileOutputStream.close();
         } catch (IOException ignored) {
         }
-        String file2 = getExternalFilesDir(null).getPath() + "/ScreenController.dex";
+        String file2 = path + "/ScreenController.dex";
         try {
             ZipFile zipFile = new ZipFile(getPackageResourcePath());
             // 遍历zip文件中的所有条目
@@ -612,6 +602,17 @@ public class MainActivity extends Activity {
             zipFile.close();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+
+        try {
+            FileOutputStream off = new FileOutputStream(path + "/scroff.sh");
+            off.write("am broadcast -a action.ScrOff --ez state true".getBytes());
+            off.close();
+
+            FileOutputStream on = new FileOutputStream(path + "/scron.sh");
+            on.write("am broadcast -a action.ScrOff --ez state false".getBytes());
+            on.close();
+        } catch (IOException ignored) {
         }
     }
 }

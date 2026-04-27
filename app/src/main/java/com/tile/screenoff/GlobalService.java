@@ -107,7 +107,18 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     }
                     break;
                 case "action.ScrOff":
-                    screenoff(intent.getBooleanExtra("state", true));
+                    if (intent.hasExtra("state")) {
+                        screenoff(intent.getBooleanExtra("state", true));
+                    } else {
+                        try {
+                            if (iScreenOff != null) {
+                                // Nếu màn hình đang bật (1), thì tắt (true). Ngược lại thì bật (false).
+                                screenoff(iScreenOff.getNowScreenState() == 1);
+                            }
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                    }
                     break;
                 case "intent.screenoff.exit":
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -318,7 +329,8 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     }
 
     public void floatWindow() {
-        if (sp.getBoolean("float", true)) {
+        // Luôn ẩn phím ảo theo yêu cầu
+        if (false) {
             if (!exist) {
                 windowManager.addView(view, params);
                 exist = true;

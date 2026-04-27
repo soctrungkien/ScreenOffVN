@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcutoff">Chạy khi tắt màn hình</string>
+    <string name="shortcuton">Dừng chạy tắt màn hình</string>
+    <string name="mannually_open">Vui lòng bật dịch vụ Hỗ trợ (Accessibility) thủ công</string>
+    <string name="active_first">Vui lòng kích hoạt dịch vụ trước khi sử dụng</string>
+    <string name="disagree">Từ chối</string>
+    <string name="agree">Đồng ý</string>
+    <string name="privacy">Chính sách bảo mật</string>
+    <string name="privacypolicy">Ứng dụng này cam kết không thu thập, ghi lại hoặc tải lên bất kỳ thông tin cá nhân nào của bạn.</string>
+    <string name="toosmall">Giá trị quá nhỏ!</string>
+    <string name="all_ok">Dịch vụ đã được kích hoạt thành công</string>
+    <string name="not_ok">Nhấn để kích hoạt dịch vụ</string>
+    <string name="active_steps">Ứng dụng cần quyền ADB hoặc Root để hoạt động.\n\nCách kích hoạt qua ADB:\n1. Bật Gỡ lỗi USB trong Cài đặt nhà phát triển.\n2. Kết nối điện thoại với máy tính.\n3. Chạy lệnh sau trong Terminal/CMD:\nadb shell %s\n\nĐối với Android 6.0+, bạn có thể sử dụng Shizuku để kích hoạt nhanh hơn.\n</string>
+    <string name="need_active">Yêu cầu kích hoạt dịch vụ</string>
+    <string name="copy_cmd">Sao chép lệnh</string>
+    <string name="cmd_copy_finish">Đã sao chép lệnh ADB:\nadb shell %s</string>
+    <string name="by_root">Kích hoạt bằng Root</string>
+    <string name="active_failed">Kích hoạt thất bại</string>
+    <string name="by_shizuku">Kích hoạt bằng Shizuku</string>
+    <string name="key_pressed">Bạn đã nhấn phím %s (Mã phím: %d)</string>
+    <string name="shizuku_notrun">Shizuku hiện không hoạt động</string>
+    <string name="help_title">Hướng dẫn sử dụng</string>
+    <string name="help_conntent">Bạn có thể nhấn vào tiêu đề \"Chạy khi tắt màn hình\" tại màn hình chính để xem lại hướng dẫn này.\n\nKhi chế độ này hoạt động, các ứng dụng sẽ tiếp tục chạy bình thường như khi màn hình đang bật. Hệ thống sẽ không tự động ngủ nếu bạn đã bật \"Điều khiển tổng thể\".\n\nTính năng \"Nhấc máy sáng màn hình\" sẽ giám sát cảm biến hướng của thiết bị. Việc này tiêu tốn rất ít pin, hầu như không ảnh hưởng đến thời lượng sử dụng.\n\nLưu ý:\n- Đa số thiết bị sẽ khóa cảm ứng khi màn hình tắt theo cách này. Tính năng \"Chạm đúp sáng màn hình\" chỉ hoạt động trên một số dòng máy nhất định (như Samsung hỗ trợ S-Pen, iQOO 9, Redmi Note 1...).\n- Một số dòng máy (Huawei HarmonyOS, Origin OS...) có thể khóa cả phím cứng. Nếu gặp trường hợp này, hãy liên hệ với tôi để cùng nghiên cứu giải pháp.\n- Với màn hình LCD, có thể vẫn thấy đèn nền mờ. Bạn nên giảm độ sáng xuống mức tối thiểu trước khi sử dụng để đạt hiệu quả tốt nhất.</string>
+    <string name="understand">Đã hiểu</string>
+    <string name="start_global_control">Bật điều khiển tổng thể</string>
+    <string name="show_fw">Hiển thị phím ảo</string>
+    <string name="show_only_land">Chỉ hiển thị khi xoay ngang</string>
+    <string name="lock_fw">Khóa vị trí phím ảo</string>
+    <string name="double_tap">Chạm đúp để sáng màn hình</string>
+    <string name="orientation">Nhấc máy sáng màn hình</string>
+    <string name="key_control">Dùng phím cứng điều khiển màn hình</string>
+    <string name="scroff">Tắt màn hình</string>
+    <string name="scron">Sáng màn hình</string>
+    <string name="fw_size">Kích thước phím ảo</string>
+    <string name="fw_tran">Độ trong suốt phím ảo</string>
+    <string name="ori_sensity">Độ nhạy cảm biến nhấc máy</string>
+    <string name="tile">Điều khiển tổng thể</string>
+    <string name="service_closed">Đã đóng dịch vụ</string>
+    <string name="net_ctl">Điều khiển qua mạng LAN</string>
+</resources>
