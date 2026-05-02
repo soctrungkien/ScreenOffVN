@@ -65,8 +65,8 @@ public class MainActivity extends Activity {
     private final Runnable checkRunnable = new Runnable() {
         @Override
         public void run() {
-            if (!isServiceOK) {
-                tryAutoActivate();
+            if (isServiceOK && iScreenOff != null) {
+                updateSwitchState();
             }
             checkHandler.postDelayed(this, 3000);
         }
@@ -102,9 +102,9 @@ public class MainActivity extends Activity {
         SharedPreferences sp = getSharedPreferences("s", 0);
         if (sp.getBoolean("first", true)) {
             new AlertDialog.Builder(this).setTitle(R.string.privacy).setMessage(R.string.privacypolicy).setNegativeButton(R.string.agree, (d, i) -> {
-                help(); sp.edit().putBoolean("first", false).apply(); tryAutoActivate();
+                help(); sp.edit().putBoolean("first", false).apply();
             }).setCancelable(false).setPositiveButton(R.string.disagree, (d, i) -> finish()).show();
-        } else { tryAutoActivate(); }
+        }
 
         setButtonsOnclick(isNight, sp);
         IntentFilter filter = new IntentFilter("intent.screenoff.sendBinder");
@@ -256,21 +256,17 @@ public class MainActivity extends Activity {
         unzipFilesStatic(context);
         final String path = context.getExternalFilesDir(null).getPath();
         final String pkg = context.getPackageName();
-        final String serviceName = new ComponentName(pkg, GlobalService.class.getName()).flattenToString();
         
-        new Thread(() -> {
-            String currentServices = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-            String newServices = (currentServices == null || currentServices.isEmpty()) ? serviceName : (currentServices.contains(serviceName) ? currentServices : currentServices + ":" + serviceName);
-            
-            StringBuilder sb = new StringBuilder();
-            sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
-            sb.append("settings put secure enabled_accessibility_services ").append(newServices).append("\n");
-            sb.append("settings put secure accessibility_enabled 1\n");
-            sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
-            sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
-            sb.append("exit\n");
-            final String cmd = sb.toString();
+        // CHỈ chạy starter và cấp quyền Overlay/Battery qua shell. 
+        // TUYỆT ĐỐI không tự kích hoạt quyền Hỗ trợ (Accessibility).
+        StringBuilder sb = new StringBuilder();
+        sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
+        sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
+        sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
+        sb.append("exit\n");
+        final String cmd = sb.toString();
 
+        new Thread(() -> {
             try {
                 Process p = Runtime.getRuntime().exec("su");
                 DataOutputStream o = new DataOutputStream(p.getOutputStream());
