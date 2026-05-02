@@ -11,7 +11,16 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.OvalShape;
 import android.os.Build;
@@ -38,8 +47,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import rikka.shizuku.Shizuku;
-
 public class GlobalService extends AccessibilityService implements SharedPreferences.OnSharedPreferenceChangeListener {
 
 
@@ -64,9 +71,6 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         }
 
         for (ActivityManager.RunningServiceInfo serviceInfo : runningServices) {
-//            Log.d("TAG", "isGyroFixServiceRunning: "+serviceInfo.toString());
-//            Log.d("TAG", "GyroFixService.class.getName(): "+GyroFixService.class.getName());
-//            Log.d("TAG", "serviceInfo.service.getClassName(): "+serviceInfo.service.getClassName());
             if (GlobalService.class.getName().equals(serviceInfo.service.getClassName())) {
                 return true;
             }
@@ -79,29 +83,30 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) return;
             switch (intent.getAction()) {
                 case "intent.screenoff.sendBinder":
                     BinderContainer binderContainer = intent.getParcelableExtra("binder");
                     IBinder binder = binderContainer.getBinder();
                     //如果binder已经失去活性了，则不再继续解析
-                    if (!binder.pingBinder()) break;
+                    if (binder == null || !binder.pingBinder()) break;
                     iScreenOff = IScreenOff.Stub.asInterface(binder);
                     floatWindow();
                     break;
                 case Intent.ACTION_SCREEN_OFF:
                     try {
-                         iScreenOff.updateNowScreenState(false);
+                        if (iScreenOff != null) iScreenOff.updateNowScreenState(false);
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
-                    view.setKeepScreenOn(false);
-                    listener.disable();
-                    if (exist) windowManager.updateViewLayout(view, params);
+                    if (view != null) view.setKeepScreenOn(false);
+                    if (listener != null) listener.disable();
+                    if (exist && windowManager != null && view != null) windowManager.updateViewLayout(view, params);
                     break;
                 case Intent.ACTION_SCREEN_ON:
                 case Intent.ACTION_USER_PRESENT:
                     try {
-                        iScreenOff.updateNowScreenState(true);
+                        if (iScreenOff != null) iScreenOff.updateNowScreenState(true);
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
@@ -144,7 +149,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String s) {
-        if (s.startsWith("x") || s.startsWith("y")) return;
+        if (s == null || s.startsWith("x") || s.startsWith("y")) return;
 
         view.setVisibility(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT && sharedPreferences.getBoolean("land", false) ? View.GONE : View.VISIBLE);
         size = (int) (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, sharedPreferences.getInt("size", 50), getResources().getDisplayMetrics()));
@@ -160,6 +165,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         scrOffKey = sharedPreferences.getInt("scrOffKey", 25);
         netControl = sharedPreferences.getBoolean("net", false);
         if (netControl) startServer();
+        else stopServer();
         floatWindow();
 
     }
@@ -245,7 +251,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                         if (!canmove) return true;
                         params.x = paramX + dx;
                         params.y = paramY + dy;
-                        windowManager.updateViewLayout(view, params);
+                        if (windowManager != null && view != null) windowManager.updateViewLayout(view, params);
 
                         break;
                     case MotionEvent.ACTION_UP:
@@ -253,7 +259,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                         params.alpha = sp.getInt("tran", 90) * 0.01f;
                         params.x = (params.x > (SCREEN_WIDTH - size) * 0.43) ? (SCREEN_WIDTH - size) / 2 : ((params.x < (SCREEN_WIDTH - size) * -0.43) ? -(SCREEN_WIDTH - size) / 2 : params.x);
                         params.y = Math.min(Math.max(params.y, -(SCREEN_HEIGHT - size) / 2), (SCREEN_HEIGHT - size) / 2);
-                        windowManager.updateViewLayout(view, params);
+                        if (windowManager != null && view != null) windowManager.updateViewLayout(view, params);
                         moved = false;
                         boolean isLand = getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
                         sp.edit().putInt("x" + (isLand ? "1" : "2"), params.x).putInt("y" + (isLand ? "1" : "2"), params.y).apply();
@@ -284,9 +290,9 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         filter.addAction("intent.screenoff.sendBinder");
         filter.addAction("intent.screenoff.exit");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(myReceiver, new IntentFilter("intent.screenoff.sendBinder"), RECEIVER_EXPORTED);
+            registerReceiver(myReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
-            registerReceiver(myReceiver, new IntentFilter("intent.screenoff.sendBinder"));
+            registerReceiver(myReceiver, filter);
         }
         sp.registerOnSharedPreferenceChangeListener(this);
     }
@@ -294,10 +300,10 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
     void screenoff(Boolean bb) {
         try {
-            if (iScreenOff.getNowScreenState() == 0) return;
+            if (iScreenOff == null || iScreenOff.getNowScreenState() == 0) return;
             iScreenOff.setPowerMode(bb);
-            view.setKeepScreenOn(bb);
-            if (shake && bb) listener.enable();
+            if (view != null) view.setKeepScreenOn(bb);
+            if (shake && bb && listener != null) listener.enable();
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -307,7 +313,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
-        if (!volume || event.getAction() == KeyEvent.ACTION_UP)
+        if (!volume || event.getAction() == KeyEvent.ACTION_UP || iScreenOff == null)
             return super.onKeyEvent(event);
 
         try {
@@ -350,6 +356,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
 
     void GetWidthHeight() {
+        if (windowManager == null) return;
         DisplayMetrics metrics = new DisplayMetrics();
         windowManager.getDefaultDisplay().getRealMetrics(metrics);
         SCREEN_WIDTH = metrics.widthPixels;
@@ -359,6 +366,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (windowManager == null || sp == null || view == null) return;
         boolean isLand = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT;
         if (sp.getBoolean("land", false))
             view.setVisibility(isLand ? View.GONE : View.VISIBLE);
@@ -381,8 +389,8 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         } catch (Exception ignored) {
         }
         exist = false;
-        listener.disable();
-        sp.unregisterOnSharedPreferenceChangeListener(this);
+        if (listener != null) listener.disable();
+        if (sp != null) sp.unregisterOnSharedPreferenceChangeListener(this);
         if (netControl) stopServer();
         super.onDestroy();
     }
@@ -408,7 +416,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
             @Override
             public void onResponseSent() {
-                server.restart();
+                if (server != null) server.restart();
             }
 
         }, port);
@@ -417,22 +425,30 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     }
 
     void stopServer() {
-        server.stop();
-        server = null;
+        if (server != null) {
+            server.stop();
+            server = null;
+        }
     }
 
     private void output(HttpRequest request) {
-        if (server == null) {
+        if (server == null || !netControl) {
             return;
         }
         String target = request.getRequestTarget();
         Log.d("TAG", "output: " + target);
         if (target.equals("/") || target.equals("/index.html")) {
             outputHtml(buildIndexHtml(request), "200 OK");
-        } else if (target.equals("/favicon.ico")) {
-            outputPng(Objects.requireNonNull(loadBinary("favicon.png")));
+        } else if (target.equals("/favicon.ico") || target.equals("/favicon.png")) {
+            byte[] icon = getRoundedAppIcon();
+            if (icon != null) outputPng(icon);
+            else outputHtml("", "404 Not Found");
         } else {
             try {
+                if (iScreenOff == null) {
+                    outputHtml("Service not connected", "503 Service Unavailable");
+                    return;
+                }
                 switch (target.substring(0, 3)) {
                     case "/1?":
                         iScreenOff.setPowerMode(false);
@@ -453,18 +469,27 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     }
 
     private String buildIndexHtml(HttpRequest request) {
-        String nowState = "未知";
+        String nowState = "Không xác định";
+        boolean isOffMode = false;
         try {
-            switch (iScreenOff.getNowScreenState()) {
-                case 0:
-                    nowState = "息屏";
-                    break;
-                case 1:
-                    nowState = "亮屏";
-                    break;
-                default:
-                    nowState = "息屏运行";
-                    break;
+            if (iScreenOff != null) {
+                int stateInt = iScreenOff.getNowScreenState();
+                switch (stateInt) {
+                    case 1: // STATE_ON
+                        nowState = "Đang bật";
+                        isOffMode = false;
+                        break;
+                    case 0: // STATE_OFF
+                        nowState = "Đã tắt (Hệ thống)";
+                        isOffMode = true;
+                        break;
+                    case 2: // STATE_SPECIAL
+                        nowState = "Đang tắt (Chạy ngầm)";
+                        isOffMode = true;
+                        break;
+                }
+            } else {
+                nowState = "Mất kết nối với trình điều khiển";
             }
         } catch (RemoteException e) {
             e.printStackTrace();
@@ -472,7 +497,8 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         return Objects.requireNonNull(loadHtml("index.html"))
                 .replace("{{brand}}", Build.BRAND)
                 .replace("{{device}}", Build.MODEL + " Android " + Build.VERSION.RELEASE)
-                .replace("{{state}}", nowState);
+                .replace("{{state}}", nowState)
+                .replace("{{checked}}", isOffMode ? "selected" : "");
     }
 
     private String build404Html() {
@@ -487,14 +513,14 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         String startLine = "HTTP/1.1 " + responseCode;
         List<String> responseHeaders = new ArrayList<>();
         responseHeaders.add("Content-Type: text/html; charset=UTF-8");
-        responseHeaders.add(String.format(Locale.getDefault(), "Content-Length: %d", html.getBytes().length));
+        responseHeaders.add(String.format(Locale.getDefault(), "Content-Length: %d", html != null ? html.getBytes().length : 0));
         StringBuilder builder = new StringBuilder();
         builder.append(startLine).append(new String(new byte[]{CR, LF}));
         for (String responseHeader : responseHeaders) {
             builder.append(responseHeader).append(new String(new byte[]{CR, LF}));
         }
         builder.append(new String(new byte[]{CR, LF}));
-        builder.append(html);
+        if (html != null) builder.append(html);
         server.output(builder.toString());
     }
 
@@ -524,6 +550,42 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         return new String(binary);
     }
 
+    private byte[] getRoundedAppIcon() {
+        try {
+            Drawable drawable = getPackageManager().getApplicationIcon(getPackageName());
+            Bitmap bitmap;
+            if (drawable instanceof BitmapDrawable) {
+                bitmap = ((BitmapDrawable) drawable).getBitmap();
+            } else {
+                bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(bitmap);
+                drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                drawable.draw(canvas);
+            }
+
+            int size = Math.min(bitmap.getWidth(), bitmap.getHeight());
+            Bitmap output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(output);
+            
+            final Paint paint = new Paint();
+            final Rect rect = new Rect(0, 0, size, size);
+            final RectF rectF = new RectF(rect);
+            final float roundPx = size * 0.2f; // Bo góc 20%
+
+            paint.setAntiAlias(true);
+            canvas.drawARGB(0, 0, 0, 0);
+            canvas.drawRoundRect(rectF, roundPx, roundPx, paint);
+            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+            canvas.drawBitmap(bitmap, rect, rect, paint);
+
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            output.compress(Bitmap.CompressFormat.PNG, 100, stream);
+            return stream.toByteArray();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private byte[] loadBinary(String fileName) {
         try {
             InputStream is = getAssets().open(fileName);
@@ -538,7 +600,6 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                 return byteStream.toByteArray();
             } finally {
                 try {
-                    byteStream.reset();
                     bis.close();
                 } catch (Exception e) {
                     e.printStackTrace();

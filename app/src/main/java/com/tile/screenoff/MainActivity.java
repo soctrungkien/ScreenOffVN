@@ -21,7 +21,9 @@ import android.graphics.drawable.shapes.RoundRectShape;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.Settings;
@@ -60,6 +62,16 @@ import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
     private boolean isExpand = false, isServiceOK = false, isPermissionResultListenerRegistered = false;
+    private final Handler checkHandler = new Handler(Looper.getMainLooper());
+    private final Runnable checkRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isServiceOK) {
+                tryAutoActivate();
+                checkHandler.postDelayed(this, 3000); // Thử lại sau mỗi 3 giây nếu chưa OK
+            }
+        }
+    };
     private int scrOffKey, scrOnKey;
     public IScreenOff iScreenOff = null;
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -110,7 +122,7 @@ public class MainActivity extends Activity {
 
         setButtonsOnclick(isNight, sp);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(mBroadcastReceiver, new IntentFilter("intent.screenoff.sendBinder"), RECEIVER_EXPORTED);
+            registerReceiver(mBroadcastReceiver, new IntentFilter("intent.screenoff.sendBinder"), Context.RECEIVER_EXPORTED);
         } else {
             registerReceiver(mBroadcastReceiver, new IntentFilter("intent.screenoff.sendBinder"));
         }
@@ -316,7 +328,7 @@ public class MainActivity extends Activity {
         Switch aSwitch = findViewById(R.id.screenoff_switch);
         aSwitch.setOnCheckedChangeListener((compoundButton, b) ->
         {
-            if (!isServiceOK) return;
+            if (!isServiceOK || iScreenOff == null) return;
             try {
                 iScreenOff.setPowerMode(!b);
             } catch (RemoteException e) {
@@ -435,7 +447,7 @@ public class MainActivity extends Activity {
         button.setOnLongClickListener(view -> {
             try {
                 sendBroadcast(new Intent("intent.screenoff.exit"));
-                iScreenOff.closeAndExit();
+                if (iScreenOff != null) iScreenOff.closeAndExit();
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -445,6 +457,7 @@ public class MainActivity extends Activity {
         });
         Switch aSwitch = findViewById(R.id.screenoff_switch);
         aSwitch.setEnabled(true);
+        updateSwitchState();
     }
 
     @Override
@@ -513,6 +526,39 @@ public class MainActivity extends Activity {
     }
 
     //一些收尾工作，取消注册监听器什么的
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkHandler.post(checkRunnable);
+        if (isServiceOK && iScreenOff != null) {
+            updateSwitchState();
+        }
+    }
+
+    private void updateSwitchState() {
+        try {
+            if (iScreenOff != null) {
+                int state = iScreenOff.getNowScreenState();
+                Switch aSwitch = findViewById(R.id.screenoff_switch);
+                // state 1 là ScreenState.STATE_ON
+                aSwitch.setChecked(state == 1);
+            }
+        } catch (RemoteException e) {
+            isServiceOK = false;
+            iScreenOff = null;
+            findViewById(R.id.screenoff_switch).setEnabled(false);
+            Button button = findViewById(R.id.activate_button);
+            button.setText(R.string.need_active);
+            button.setTextColor(Color.RED);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        checkHandler.removeCallbacks(checkRunnable);
+    }
+
     @Override
     protected void onDestroy() {
         if (isPermissionResultListenerRegistered) Shizuku.removeRequestPermissionResultListener(RL);

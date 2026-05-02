@@ -1,16 +1,90 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>404 KHÔNG TÌM THẤY</title>
+    <title>404 - Không tìm thấy</title>
 
+    <!-- Material Web Components -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@material/web/": "https://esm.run/@material/web/"
+        }
+    }
+    </script>
+    <script type="module">
+        import '@material/web/all.js';
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --md-sys-color-primary: #a8c7fa;
+            --md-sys-color-surface: #1a1c1e;
+            --md-sys-color-on-surface: #e2e2e6;
+            --md-sys-color-on-surface-variant: #c4c7c5;
+
+            font-family: 'Roboto Flex', sans-serif;
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            min-height: 100vh;
+            padding: 24px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 80px;
+            margin: 0;
+            color: var(--md-sys-color-primary);
+            font-weight: 700;
+        }
+
+        h2 {
+            font-size: 24px;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        p {
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        md-filled-button {
+            width: fit-content;
+            align-self: center;
+            --md-filled-button-container-color: var(--md-sys-color-primary);
+            --md-filled-button-label-text-color: #062e6f;
+        }
+    </style>
 </head>
 <body>
-    <div id="contents" align="center">
-        <h2>404 KHÔNG TÌM THẤY!!!</h2>
-        <p>Vui lòng thử <a href="/">index.html</a></p>
+    <div class="container">
+        <h1>404</h1>
+        <h2>Trang không tồn tại</h2>
+        <p>Có vẻ như bạn đã đi lạc đường hoặc liên kết đã hết hạn.</p>
+        <md-filled-button onclick="window.location.href='/'">Quay lại trang chủ</md-filled-button>
     </div>
 </body>
 </html>
