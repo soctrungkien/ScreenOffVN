@@ -8,109 +8,82 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class SimpleTcpServer {
 
     public interface TcpConnectionListener {
-        void onReceive(byte[] data);
-        void onResponseSent();
+        void onReceive(byte[] data, Socket socket);
     }
+    
     private ServerSocket serverSocket;
     private static final int CAPACITY = 1024 * 1024;
-
     private final TcpConnectionListener listener;
-    private BufferedInputStream in;
-    private OutputStream out;
+    private final int port;
+    private final ExecutorService executor = Executors.newCachedThreadPool();
+    private boolean isRunning = false;
 
     public SimpleTcpServer(TcpConnectionListener listener, int port) {
         this.listener = listener;
-        try {
-            serverSocket = new ServerSocket();
-            serverSocket.bind(new InetSocketAddress(port));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        this.port = port;
     }
 
     public void start() {
-        if (serverSocket == null) {
-            return;
-        }
-
-        new Thread(() -> {
-            try {
-                Socket socket = serverSocket.accept();
-                in = new BufferedInputStream(socket.getInputStream());
-                out = new BufferedOutputStream(socket.getOutputStream());
-                startInputThread();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-    private void startInputThread() {
-        new Thread(() -> {
-            try {
-                while(true) {
-                    byte[] buf = new byte[CAPACITY];
-                    if (in == null) {
-                        break;
-                    }
-                    int size = in.read(buf);
-                    if (size > 0) {
-                        byte[] chunk = Arrays.copyOfRange(buf, 0, size);
-                        listener.onReceive(chunk);
-                    } else {
-                        restart();
-                        break;
-                    }
-                }
-            } catch (IOException e) {
-                restart();
-            }
-        }).start();
-    }
-
-    public void output(String data) {
-        output(data.getBytes());
-    }
-
-    public void output(final byte[] data) {
-        new Thread(() -> {
-            if (out != null) {
-                try {
-                    out.write(data);
-                    out.flush();
-                    listener.onResponseSent();
-                } catch (IOException e) {
-                    restart();
-                }
-            }
-        }).start();
-    }
-
-    public void stop() {
+        if (isRunning) return;
         try {
-            if (in != null) {
-                in.close();
-                in = null;
-            }
-            if (out != null) {
-                out.close();
-                out = null;
-            }
+            serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress(port));
+            isRunning = true;
+            
+            new Thread(() -> {
+                while (isRunning) {
+                    try {
+                        Socket socket = serverSocket.accept();
+                        executor.execute(() -> handleClient(socket));
+                    } catch (IOException e) {
+                        if (isRunning) e.printStackTrace();
+                    }
+                }
+            }).start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
+    private void handleClient(Socket socket) {
+        try (BufferedInputStream in = new BufferedInputStream(socket.getInputStream())) {
+            byte[] buf = new byte[CAPACITY];
+            int size = in.read(buf);
+            if (size > 0) {
+                byte[] chunk = Arrays.copyOfRange(buf, 0, size);
+                listener.onReceive(chunk, socket);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            in = null;
-            out = null;
+            try { socket.close(); } catch (IOException ignored) {}
         }
     }
 
-    public void restart() {
-        stop();
-        start();
+    public void sendResponse(Socket socket, byte[] data) {
+        try {
+            OutputStream out = new BufferedOutputStream(socket.getOutputStream());
+            out.write(data);
+            out.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void stop() {
+        isRunning = false;
+        try {
+            if (serverSocket != null) serverSocket.close();
+            executor.shutdownNow();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
