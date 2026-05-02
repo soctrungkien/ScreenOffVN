@@ -1,10 +1,7 @@
 package com.tile.screenoff;
 
-import android.animation.LayoutTransition;
-import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -29,6 +26,7 @@ import android.os.RemoteException;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
@@ -48,12 +46,12 @@ import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -62,14 +60,16 @@ import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
     private boolean isExpand = false, isServiceOK = false, isPermissionResultListenerRegistered = false;
+    private boolean isRequestingPermission = false;
     private final Handler checkHandler = new Handler(Looper.getMainLooper());
     private final Runnable checkRunnable = new Runnable() {
         @Override
         public void run() {
             if (!isServiceOK) {
                 tryAutoActivate();
-                checkHandler.postDelayed(this, 3000); // Thử lại sau mỗi 3 giây nếu chưa OK
             }
+            checkPermissionsAuto();
+            checkHandler.postDelayed(this, 3000);
         }
     };
     private int scrOffKey, scrOnKey;
@@ -77,18 +77,19 @@ public class MainActivity extends Activity {
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
             BinderContainer binderContainer = intent.getParcelableExtra("binder");
+            if (binderContainer == null) return;
             IBinder binder = binderContainer.getBinder();
-            //如果binder已经失去活性了，则不再继续解析
-            if (!binder.pingBinder()) return;
+            if (binder == null || !binder.pingBinder()) return;
             iScreenOff = IScreenOff.Stub.asInterface(binder);
             enableScreenOffFunctions();
         }
     };
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         window.getAttributes().dimAmount = 0.5f;
@@ -113,422 +114,23 @@ public class MainActivity extends Activity {
                     .setCancelable(false)
                     .setPositiveButton(R.string.disagree, (dialogInterface, i) -> finish())
                     .show();
-
-
         } else {
-            // Đảm bảo kích hoạt ngay lập tức
             tryAutoActivate();
         }
 
         setButtonsOnclick(isNight, sp);
+        IntentFilter filter = new IntentFilter("intent.screenoff.sendBinder");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(mBroadcastReceiver, new IntentFilter("intent.screenoff.sendBinder"), Context.RECEIVER_EXPORTED);
+            registerReceiver(mBroadcastReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
-            registerReceiver(mBroadcastReceiver, new IntentFilter("intent.screenoff.sendBinder"));
+            registerReceiver(mBroadcastReceiver, filter);
         }
-        super.onCreate(savedInstanceState);
-
     }
 
-
-    private void showNet() {
-        String[] i = new String[]{"wlan: ", "eth: ", "usb: ", "p2p: ", "lo: ", "unknown: "};
-        int i2;
-        boolean avalible = false;
-        try {
-            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
-            while (networkInterfaces.hasMoreElements()) {
-                NetworkInterface nextElement = networkInterfaces.nextElement();
-                String name = nextElement.getName().toLowerCase(Locale.US);
-                if (name.contains("wlan"))
-                    i2 = 0;
-                else if (name.contains("eth"))
-                    i2 = 1;
-                else if (name.contains("usb"))
-                    i2 = 2;
-                else if (name.contains("p2p"))
-                    i2 = 3;
-                else if (name.contains("lo"))
-                    i2 = 4;
-                else
-                    i2 = 5;
-                Enumeration<InetAddress> inetAddresses = nextElement.getInetAddresses();
-                while (inetAddresses.hasMoreElements()) {
-                    InetAddress nextElement2 = inetAddresses.nextElement();
-                    if (!nextElement2.isLoopbackAddress() && nextElement2 instanceof Inet4Address) {
-                        i[i2] += nextElement2.getHostAddress() + ":" + GlobalService.port + " ";
-                        avalible = true;
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        int j = 0;
-        StringBuilder sb = new StringBuilder();
-        while (j < 5) {
-            if (Pattern.compile(": ").split(i[j]).length > 1) sb.append(i[j]);
-            j++;
-        }
-        TextView textView = findViewById(R.id.title_text);
-        textView.setOnClickListener(null);
-        textView.setText(avalible ? sb.toString() : "no network avalible");
-    }
-
-    private void setButtonsOnclick(boolean isNight, SharedPreferences sp) {
-
-        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            findViewById(R.id.left).setVisibility(View.VISIBLE);
-            findViewById(R.id.right).setVisibility(View.VISIBLE);
-        }
-        LinearLayout linearLayout = findViewById(R.id.ll);
-        EditText e1 = findViewById(R.id.e1);
-        EditText e2 = findViewById(R.id.e2);
-        Switch s1, s6, s7, s8;
-        s1 = findViewById(R.id.s1);
-        s6 = findViewById(R.id.s6);
-        s7 = findViewById(R.id.s7);
-        s8 = findViewById(R.id.s8);
-        final String setting = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        s1.setChecked(setting != null && setting.contains(getPackageName()));
-        s6.setChecked(sp.getBoolean("shake", false));
-        s7.setChecked(sp.getBoolean("volume", false));
-        s8.setChecked(sp.getBoolean("net", false));
-        SeekBar sd = findViewById(R.id.sd);
-        sd.setProgress(sp.getInt("sensity", 10));
-        EditText ed = findViewById(R.id.ed);
-        ed.setText(String.valueOf(sp.getInt("sensity", 10)));
-        s1.setOnCheckedChangeListener((compoundButton, isChecked) -> {
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !((PowerManager) getSystemService(Service.POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName()))
-                startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
-
-            if (!isServiceOK) {
-                compoundButton.setChecked(false);
-                Toast.makeText(MainActivity.this, R.string.active_first, Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (isChecked) {
-                final String serviceName = new ComponentName(getPackageName(), GlobalService.class.getName()).flattenToString();
-                final String oldSetting = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-                final String newSetting = oldSetting == null ? serviceName : serviceName + ":" + oldSetting;
-                try {
-                    Settings.Secure.putInt(getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, 1);
-                    Settings.Secure.putString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, newSetting);
-                } catch (Exception e) {
-                    compoundButton.setChecked(false);
-                    Toast.makeText(MainActivity.this, R.string.mannually_open, Toast.LENGTH_SHORT).show();
-                    Bundle bundle = new Bundle();
-                    bundle.putString(":settings:fragment_args_key", serviceName);
-                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).putExtra(":settings:fragment_args_key", serviceName).putExtra(":settings:show_fragment_args", bundle));
-                }
-                if (s8.isChecked()) showNet();
-            } else {
-                ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff);
-                sendBroadcast(new Intent("intent.screenoff.exit"));
-            }
-
-        });
-        s6.setOnCheckedChangeListener((compoundButton, b) -> sp.edit().putBoolean("shake", b).apply());
-        s7.setOnCheckedChangeListener((compoundButton, b) -> {
-            sp.edit().putBoolean("volume", b).apply();
-            e1.setEnabled(b);
-            e2.setEnabled(b);
-        });
-        s8.setOnCheckedChangeListener((compoundButton, b) -> {
-            if (s1.isChecked()) {
-                if (b) showNet();
-                else ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff);
-            }
-            sp.edit().putBoolean("net", b).apply();
-        });
-        if (s1.isChecked() && s8.isChecked()) showNet();
-        sd.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                sp.edit().putInt("sensity", i).apply();
-                ed.setText(String.valueOf(i));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                if (seekBar.getProgress() < 1) {
-                    seekBar.setProgress(1);
-                    Toast.makeText(MainActivity.this, R.string.toosmall, Toast.LENGTH_SHORT).show();
-                }
-
-            }
-        });
-        ed.setOnKeyListener((view, i, keyEvent) -> {
-            if (keyEvent.getKeyCode() == KeyEvent.KEYCODE_ENTER && keyEvent.getAction() == KeyEvent.ACTION_DOWN && ed.getText().length() > 0) {
-                int value = Integer.parseInt(ed.getText().toString());
-                if (value >= 0 && value <= 30) {
-                    sp.edit().putInt("sensity", value).apply();
-                    sd.setProgress(value);
-                }
-            }
-            return false;
-        });
-        e1.setEnabled(s7.isChecked());
-        e2.setEnabled(s7.isChecked());
-        scrOffKey = sp.getInt("scrOffKey", 25);
-        scrOnKey = sp.getInt("scrOnKey", 24);
-        e1.setText(String.valueOf(scrOffKey));
-        e2.setText(String.valueOf(scrOnKey));
-        e1.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                if (charSequence.length() > 0) {
-                    scrOffKey = Integer.parseInt(String.valueOf(charSequence));
-                    sp.edit().putInt("scrOffKey", scrOffKey).apply();
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable editable) {
-            }
-        });
-        e2.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                if (charSequence.length() > 0) {
-                    scrOnKey = Integer.parseInt(String.valueOf(charSequence));
-                    sp.edit().putInt("scrOnKey", scrOnKey).apply();
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable editable) {
-            }
-        });
-        findViewById(R.id.title_text).setOnClickListener(view -> help());
-        float density = getResources().getDisplayMetrics().density;
-        findViewById(R.id.activate_button).setOnClickListener(view -> showActivate());
-        ShapeDrawable oval = new ShapeDrawable(new RoundRectShape(new float[]{30 * density, 30 * density, 30 * density, 30 * density, 0, 0, 0, 0}, null, null));
-        oval.getPaint().setColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(isNight ? R.color.bgBlack : R.color.bgWhite) : (isNight ? 0xff303034 : 0xffe4e2e6));
-        linearLayout.setBackground(oval);
-        LayoutTransition transition = new LayoutTransition();
-        transition.setDuration(400L);
-        ObjectAnimator animator = ObjectAnimator.ofFloat(null, "scaleX", 0.0f, 1.0f);
-        transition.setAnimator(2, animator);
-        linearLayout.setLayoutTransition(transition);
-        ScrollView scrollView = findViewById(R.id.sv);
-        Switch aSwitch = findViewById(R.id.screenoff_switch);
-        aSwitch.setOnCheckedChangeListener((compoundButton, b) ->
-        {
-            if (!isServiceOK || iScreenOff == null) return;
-            try {
-                iScreenOff.setPowerMode(!b);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        });
-
-        // Luôn luôn mở rộng, không cho phép thu nhỏ
-        isExpand = true;
-    }
-
-
-    public static void trySilentActivate(Context context) {
-        if (GlobalService.isScreenOffServiceRunning(context)) return;
-
-        unzipFilesStatic(context);
-        final String path = context.getExternalFilesDir(null).getPath();
-        final String command = "chmod 777 " + path + "/starter.sh && sh " + path + "/starter.sh " + path;
-        final String serviceName = new ComponentName(context.getPackageName(), GlobalService.class.getName()).flattenToString();
-        final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
-
-        new Thread(() -> {
-            // Thử bằng Root trước
-            try {
-                Process p = Runtime.getRuntime().exec("su");
-                java.io.DataOutputStream o = new java.io.DataOutputStream(p.getOutputStream());
-                o.writeBytes(command + "\n" + enableAccCommand + "exit\n");
-                o.flush();
-                o.close();
-                p.waitFor();
-            } catch (Exception ignored) {}
-
-            // Nếu Root thất bại hoặc không có, thử Shizuku
-            if (!GlobalService.isScreenOffServiceRunning(context)) {
-                try {
-                    if (rikka.shizuku.Shizuku.pingBinder()) {
-                        if (rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                            runShizukuCommandStatic(command + "\n" + enableAccCommand);
-                        }
-                    }
-                } catch (Exception ignored) {}
-            }
-        }).start();
-    }
-
-    private static void runShizukuCommandStatic(String cmd) {
-        try {
-            Process p = rikka.shizuku.Shizuku.newProcess(new String[]{"sh"}, null, null);
-            java.io.OutputStream out = p.getOutputStream();
-            out.write((cmd + "\nexit\n").getBytes());
-            out.flush();
-            out.close();
-        } catch (Exception ignored) {}
-    }
-
-    public static void unzipFilesStatic(Context context) {
-        String path = context.getExternalFilesDir(null).getPath();
-        try {
-            InputStream is = context.getAssets().open("starter.sh");
-            FileOutputStream fileOutputStream = new FileOutputStream(path + "/starter.sh");
-            byte[] buffer = new byte[1024];
-            int byteRead;
-            while (-1 != (byteRead = is.read(buffer))) {
-                fileOutputStream.write(buffer, 0, byteRead);
-            }
-            is.close();
-            fileOutputStream.flush();
-            fileOutputStream.close();
-        } catch (IOException ignored) {}
-
-        try {
-            ZipFile zipFile = new ZipFile(context.getPackageResourcePath());
-            Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                if (entry.getName().equals("classes.dex")) {
-                    InputStream inputStream = zipFile.getInputStream(entry);
-                    FileOutputStream fos = new FileOutputStream(path + "/ScreenController.dex");
-                    byte[] buffer = new byte[1024];
-                    int len;
-                    while ((len = inputStream.read(buffer)) > 0) {
-                        fos.write(buffer, 0, len);
-                    }
-                    fos.close();
-                    break;
-                }
-            }
-            zipFile.close();
-        } catch (IOException ignored) {}
-
-        try {
-            FileOutputStream off = new FileOutputStream(path + "/scroff.sh");
-            off.write("am broadcast -a action.ScrOff --ez state true".getBytes());
-            off.close();
-            FileOutputStream on = new FileOutputStream(path + "/scron.sh");
-            on.write("am broadcast -a action.ScrOff --ez state false".getBytes());
-            on.close();
-        } catch (IOException ignored) {}
-    }
-
-    private void tryAutoActivate() {
-        if (isServiceOK) return;
-        trySilentActivate(this);
-    }
-
-    private void runShizukuCommand(String cmd) {
-        runShizukuCommandStatic(cmd);
-    }
-
-    public void enableScreenOffFunctions() {
-        Button button = findViewById(R.id.activate_button);
-        isServiceOK = true;
-        button.setText(getString(R.string.all_ok));
-        button.setTextColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(R.color.right) : 0x00000000);
-        button.setOnClickListener(null);
-        button.setOnLongClickListener(view -> {
-            try {
-                sendBroadcast(new Intent("intent.screenoff.exit"));
-                if (iScreenOff != null) iScreenOff.closeAndExit();
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-            Toast.makeText(this, R.string.service_closed, Toast.LENGTH_SHORT).show();
-            finish();
-            return false;
-        });
-        Switch aSwitch = findViewById(R.id.screenoff_switch);
-        aSwitch.setEnabled(true);
-        updateSwitchState();
-    }
-
-    @Override
-    public void onBackPressed() {
-        finish();
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        super.onKeyDown(keyCode, event);
-        if (isExpand) {
-            Toast.makeText(this, String.format(Locale.getDefault(), getString(R.string.key_pressed), KeyEvent.keyCodeToString(keyCode).replace("KEYCODE_", ""), keyCode), Toast.LENGTH_SHORT).show();
-            return true;
-        }
-        if (!isServiceOK) return true;
-        Switch aSwitch = findViewById(R.id.screenoff_switch);
-        if (keyCode == scrOffKey) aSwitch.setChecked(true);
-        if (keyCode == scrOnKey) aSwitch.setChecked(false);
-        return true;
-    }
-
-
-    private final Shizuku.OnRequestPermissionResultListener RL = (requestCode, grantResult) -> check();
-
-
-    //检查Shizuku权限，申请Shizuku权限的函数
-    private void check() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
-
-        if (!isPermissionResultListenerRegistered) {
-            Shizuku.addRequestPermissionResultListener(RL);
-            isPermissionResultListenerRegistered = true;
-        }
-        boolean b = true, c = false;
-        try {
-            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED)
-                Shizuku.requestPermission(0);
-            else c = true;
-        } catch (Exception e) {
-            if (checkSelfPermission("moe.shizuku.manager.permission.API_V23") == PackageManager.PERMISSION_GRANTED)
-                c = true;
-            if (e.getClass() == IllegalStateException.class) {
-                b = false;
-                Toast.makeText(this, R.string.shizuku_notrun, Toast.LENGTH_SHORT).show();
-            }
-        }
-        if (b && c) {
-            final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
-            final String serviceName = new ComponentName(getPackageName(), GlobalService.class.getName()).flattenToString();
-            final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
-            runShizukuCommand(command + "\n" + enableAccCommand);
-        }
-
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            findViewById(R.id.left).setVisibility(View.VISIBLE);
-            findViewById(R.id.right).setVisibility(View.VISIBLE);
-        } else {
-            findViewById(R.id.left).setVisibility(View.GONE);
-            findViewById(R.id.right).setVisibility(View.GONE);
-        }
-        super.onConfigurationChanged(newConfig);
-    }
-
-    //一些收尾工作，取消注册监听器什么的
     @Override
     protected void onResume() {
         super.onResume();
+        isRequestingPermission = false;
         checkHandler.post(checkRunnable);
         if (isServiceOK && iScreenOff != null) {
             updateSwitchState();
@@ -540,7 +142,6 @@ public class MainActivity extends Activity {
             if (iScreenOff != null) {
                 int state = iScreenOff.getNowScreenState();
                 Switch aSwitch = findViewById(R.id.screenoff_switch);
-                // state 1 là ScreenState.STATE_ON
                 aSwitch.setChecked(state == 1);
             }
         } catch (RemoteException e) {
@@ -559,106 +160,364 @@ public class MainActivity extends Activity {
         checkHandler.removeCallbacks(checkRunnable);
     }
 
-    @Override
-    protected void onDestroy() {
-        if (isPermissionResultListenerRegistered) Shizuku.removeRequestPermissionResultListener(RL);
-        unregisterReceiver(mBroadcastReceiver);
-        super.onDestroy();
-    }
-
-    public void finish(View view) {
-        finish();
-    }
-
-    public void help() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.help_title)
-                .setMessage(R.string.help_conntent)
-                .setNegativeButton(R.string.understand, null)
-                .show();
-    }
-
-    public void showActivate() {
-        unzipFiles();
-        final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
-        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this)
-                .setMessage(String.format(getString(R.string.active_steps), command))
-                .setTitle(R.string.need_active)
-                .setNeutralButton(R.string.copy_cmd, (dialogInterface, i) -> {
-                    ((ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("c", "adb shell " + command));
-                    Toast.makeText(MainActivity.this, String.format(getString(R.string.cmd_copy_finish), command), Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton(R.string.by_root, (dialoginterface, i) -> {
-                    Process p;
-                    try {
-                        p = Runtime.getRuntime().exec("su");
-                        DataOutputStream o = new DataOutputStream(p.getOutputStream());
-                        o.writeBytes(command);
-                        o.flush();
-                        o.close();
-                    } catch (IOException ignored) {
-                        Toast.makeText(MainActivity.this, R.string.active_failed, Toast.LENGTH_SHORT).show();
-                    }
-                });
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            builder.setPositiveButton(R.string.by_shizuku, (dialogInterface, i) -> check());
-        builder.show();
-    }
-
-    private void unzipFiles() {
-
-        String path = getExternalFilesDir(null).getPath();
-        String file1 = path + "/starter.sh";
-        try {
-            InputStream is = getAssets().open("starter.sh");
-            FileOutputStream fileOutputStream = new FileOutputStream(file1);
-            byte[] buffer = new byte[1024];
-            int byteRead;
-            while (-1 != (byteRead = is.read(buffer))) {
-                fileOutputStream.write(buffer, 0, byteRead);
-            }
-            is.close();
-            fileOutputStream.flush();
-            fileOutputStream.close();
-        } catch (IOException ignored) {
+    private void checkPermissionsAuto() {
+        if (isRequestingPermission) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            isRequestingPermission = true;
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+            Toast.makeText(this, "Vui lòng cấp quyền 'Xuất hiện trên cùng'", Toast.LENGTH_LONG).show();
+            return;
         }
-        String file2 = path + "/ScreenController.dex";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                isRequestingPermission = true;
+                try {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                } catch (Exception e) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                        startActivity(intent);
+                    } catch (Exception ignored) {}
+                }
+                return;
+            }
+        }
+        if (!isAccessibilityServiceEnabled(this, GlobalService.class)) {
+            isRequestingPermission = true;
+            Toast.makeText(this, "Vui lòng bật dịch vụ Hỗ trợ cho ứng dụng", Toast.LENGTH_LONG).show();
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            startActivity(intent);
+        }
+    }
+
+    public static boolean isAccessibilityServiceEnabled(Context context, Class<?> service) {
+        ComponentName expectedComponentName = new ComponentName(context, service);
+        String enabledServicesSetting = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (enabledServicesSetting == null) return false;
+        String[] services = enabledServicesSetting.split(":");
+        for (String componentName : services) {
+            ComponentName enabledComponentName = ComponentName.unflattenFromString(componentName);
+            if (Objects.equals(enabledComponentName, expectedComponentName)) return true;
+        }
+        return false;
+    }
+
+    private void showNet() {
+        String[] i = new String[]{"wlan: ", "eth: ", "usb: ", "p2p: ", "lo: ", "unknown: "};
+        int i2;
+        boolean avalible = false;
         try {
-            ZipFile zipFile = new ZipFile(getPackageResourcePath());
-            // 遍历zip文件中的所有条目
+            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+            while (networkInterfaces.hasMoreElements()) {
+                NetworkInterface nextElement = networkInterfaces.nextElement();
+                String name = nextElement.getName().toLowerCase(Locale.US);
+                if (name.contains("wlan")) i2 = 0;
+                else if (name.contains("eth")) i2 = 1;
+                else if (name.contains("usb")) i2 = 2;
+                else if (name.contains("p2p")) i2 = 3;
+                else if (name.contains("lo")) i2 = 4;
+                else i2 = 5;
+                Enumeration<InetAddress> inetAddresses = nextElement.getInetAddresses();
+                while (inetAddresses.hasMoreElements()) {
+                    InetAddress nextElement2 = inetAddresses.nextElement();
+                    if (!nextElement2.isLoopbackAddress() && nextElement2 instanceof Inet4Address) {
+                        i[i2] += nextElement2.getHostAddress() + ":" + GlobalService.port + " ";
+                        avalible = true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        int j = 0;
+        StringBuilder sb = new StringBuilder();
+        while (j < 5) {
+            if (Pattern.compile(": ").split(i[j]).length > 1) sb.append(i[j]);
+            j++;
+        }
+        TextView textView = findViewById(R.id.title_text);
+        textView.setOnClickListener(null);
+        textView.setText(avalible ? sb.toString() : "no network avalible");
+    }
+
+    private void setButtonsOnclick(boolean isNight, SharedPreferences sp) {
+        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            findViewById(R.id.left).setVisibility(View.VISIBLE);
+            findViewById(R.id.right).setVisibility(View.VISIBLE);
+        }
+        LinearLayout linearLayout = findViewById(R.id.ll);
+        EditText e1 = findViewById(R.id.e1), e2 = findViewById(R.id.e2);
+        Switch s1 = findViewById(R.id.s1), s6 = findViewById(R.id.s6), s7 = findViewById(R.id.s7), s8 = findViewById(R.id.s8);
+        
+        s1.setChecked(isAccessibilityServiceEnabled(this, GlobalService.class));
+        s6.setChecked(sp.getBoolean("shake", false));
+        s7.setChecked(sp.getBoolean("volume", false));
+        s8.setChecked(sp.getBoolean("net", false));
+        
+        SeekBar sd = findViewById(R.id.sd);
+        sd.setProgress(sp.getInt("sensity", 10));
+        EditText ed = findViewById(R.id.ed);
+        ed.setText("" + sp.getInt("sensity", 10));
+        
+        s1.setOnCheckedChangeListener((compoundButton, isChecked) -> {
+            if (!isServiceOK) {
+                compoundButton.setChecked(false);
+                Toast.makeText(MainActivity.this, R.string.active_first, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (isChecked) {
+                if (!isAccessibilityServiceEnabled(this, GlobalService.class)) {
+                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    startActivity(intent);
+                }
+                if (s8.isChecked()) showNet();
+            } else {
+                ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff);
+                sendBroadcast(new Intent("intent.screenoff.exit"));
+            }
+        });
+        s6.setOnCheckedChangeListener((compoundButton, b) -> sp.edit().putBoolean("shake", b).apply());
+        s7.setOnCheckedChangeListener((compoundButton, b) -> {
+            sp.edit().putBoolean("volume", b).apply();
+            e1.setEnabled(b); e2.setEnabled(b);
+        });
+        s8.setOnCheckedChangeListener((compoundButton, b) -> {
+            if (s1.isChecked()) {
+                if (b) showNet();
+                else ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff);
+            }
+            sp.edit().putBoolean("net", b).apply();
+        });
+        if (s1.isChecked() && s8.isChecked()) showNet();
+        sd.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                sp.edit().putInt("sensity", i).apply();
+                ed.setText("" + i);
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                if (seekBar.getProgress() < 1) {
+                    seekBar.setProgress(1);
+                    Toast.makeText(MainActivity.this, R.string.toosmall, Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        ed.setOnKeyListener((view, i, keyEvent) -> {
+            if (keyEvent.getKeyCode() == KeyEvent.KEYCODE_ENTER && keyEvent.getAction() == KeyEvent.ACTION_DOWN && ed.getText().length() > 0) {
+                int value = Integer.parseInt(ed.getText().toString());
+                if (value >= 0 && value <= 30) {
+                    sp.edit().putInt("sensity", value).apply();
+                    sd.setProgress(value);
+                }
+            }
+            return false;
+        });
+        e1.setEnabled(s7.isChecked()); e2.setEnabled(s7.isChecked());
+        scrOffKey = sp.getInt("scrOffKey", 25); scrOnKey = sp.getInt("scrOnKey", 24);
+        e1.setText("" + scrOffKey); e2.setText("" + scrOnKey);
+        e1.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {}
+            @Override
+            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+                if (charSequence.length() > 0) {
+                    scrOffKey = Integer.parseInt(charSequence.toString());
+                    sp.edit().putInt("scrOffKey", scrOffKey).apply();
+                }
+            }
+            @Override public void afterTextChanged(Editable editable) {}
+        });
+        e2.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {}
+            @Override
+            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+                if (charSequence.length() > 0) {
+                    scrOnKey = Integer.parseInt(charSequence.toString());
+                    sp.edit().putInt("scrOnKey", scrOnKey).apply();
+                }
+            }
+            @Override public void afterTextChanged(Editable editable) {}
+        });
+        findViewById(R.id.title_text).setOnClickListener(view -> help());
+        float density = getResources().getDisplayMetrics().density;
+        findViewById(R.id.activate_button).setOnClickListener(view -> showActivate());
+        ShapeDrawable oval = new ShapeDrawable(new RoundRectShape(new float[]{30 * density, 30 * density, 30 * density, 30 * density, 0, 0, 0, 0}, null, null));
+        oval.getPaint().setColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(isNight ? R.color.bgBlack : R.color.bgWhite) : (isNight ? 0xff303034 : 0xffe4e2e6));
+        linearLayout.setBackground(oval);
+        Switch aSwitch = findViewById(R.id.screenoff_switch);
+        aSwitch.setOnCheckedChangeListener((compoundButton, b) -> {
+            if (!isServiceOK || iScreenOff == null) return;
+            try { iScreenOff.setPowerMode(!b); } catch (RemoteException e) { e.printStackTrace(); }
+        });
+        isExpand = true;
+    }
+
+    public static void trySilentActivate(Context context) {
+        if (GlobalService.isScreenOffServiceRunning(context)) return;
+        unzipFilesStatic(context);
+        final String path = context.getExternalFilesDir(null).getPath();
+        final String command = "chmod 777 " + path + "/starter.sh && sh " + path + "/starter.sh " + path;
+        final String serviceName = new ComponentName(context.getPackageName(), GlobalService.class.getName()).flattenToString();
+        final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
+        new Thread(() -> {
+            try {
+                Process p = Runtime.getRuntime().exec("su");
+                java.io.DataOutputStream o = new java.io.DataOutputStream(p.getOutputStream());
+                o.writeBytes(command + "\n" + enableAccCommand + "exit\n");
+                o.flush(); o.close();
+                p.waitFor();
+            } catch (Exception ignored) {}
+            if (!GlobalService.isScreenOffServiceRunning(context)) {
+                try {
+                    if (rikka.shizuku.Shizuku.pingBinder()) {
+                        if (rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                            runShizukuCommandStatic(command + "\n" + enableAccCommand);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }).start();
+    }
+
+    private static void runShizukuCommandStatic(String cmd) {
+        try {
+            Process p = rikka.shizuku.Shizuku.newProcess(new String[]{"sh"}, null, null);
+            java.io.OutputStream out = p.getOutputStream();
+            out.write((cmd + "\nexit\n").getBytes());
+            out.flush(); out.close();
+        } catch (Exception ignored) {}
+    }
+
+    public static void unzipFilesStatic(Context context) {
+        String path = context.getExternalFilesDir(null).getPath();
+        try (InputStream is = context.getAssets().open("starter.sh");
+             FileOutputStream fos = new FileOutputStream(path + "/starter.sh")) {
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = is.read(buffer)) != -1) fos.write(buffer, 0, len);
+        } catch (IOException ignored) {}
+        try (ZipFile zipFile = new ZipFile(context.getPackageResourcePath())) {
             Enumeration<? extends ZipEntry> entries = zipFile.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
-
-                // 如果条目名称为classes.dex，则解压该条目到指定目录
-                if (entry.getName().equals("classes.dex")) {
-                    InputStream inputStream = zipFile.getInputStream(entry);
-                    FileOutputStream fos = new FileOutputStream(file2);
-                    byte[] buffer = new byte[1024];
-                    int len;
-                    while ((len = inputStream.read(buffer)) > 0) {
-                        fos.write(buffer, 0, len);
+                if ("classes.dex".equals(entry.getName())) {
+                    try (InputStream is = zipFile.getInputStream(entry);
+                         FileOutputStream fos = new FileOutputStream(path + "/ScreenController.dex")) {
+                        byte[] buffer = new byte[1024];
+                        int len;
+                        while ((len = is.read(buffer)) > 0) fos.write(buffer, 0, len);
                     }
-                    fos.close();
                     break;
                 }
             }
-
-            // 关闭ZipFile对象
-            zipFile.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
+        } catch (IOException ignored) {}
         try {
             FileOutputStream off = new FileOutputStream(path + "/scroff.sh");
             off.write("am broadcast -a action.ScrOff --ez state true".getBytes());
             off.close();
-
             FileOutputStream on = new FileOutputStream(path + "/scron.sh");
             on.write("am broadcast -a action.ScrOff --ez state false".getBytes());
             on.close();
-        } catch (IOException ignored) {
+        } catch (IOException ignored) {}
+    }
+
+    private void tryAutoActivate() {
+        if (isServiceOK) return;
+        trySilentActivate(this);
+    }
+
+    public void enableScreenOffFunctions() {
+        Button button = findViewById(R.id.activate_button);
+        isServiceOK = true;
+        button.setText(getString(R.string.all_ok));
+        button.setTextColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(R.color.right) : 0xFF00FF00);
+        button.setOnClickListener(null);
+        button.setOnLongClickListener(view -> {
+            try {
+                sendBroadcast(new Intent("intent.screenoff.exit"));
+                if (iScreenOff != null) iScreenOff.closeAndExit();
+            } catch (RemoteException e) { e.printStackTrace(); }
+            Toast.makeText(this, R.string.service_closed, Toast.LENGTH_SHORT).show();
+            finish();
+            return false;
+        });
+        findViewById(R.id.screenoff_switch).setEnabled(true);
+        updateSwitchState();
+    }
+
+    @Override
+    public void onBackPressed() { finish(); }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (isExpand) {
+            Toast.makeText(this, String.format(Locale.getDefault(), getString(R.string.key_pressed), KeyEvent.keyCodeToString(keyCode).replace("KEYCODE_", ""), keyCode), Toast.LENGTH_SHORT).show();
+            return true;
         }
+        if (!isServiceOK) return true;
+        Switch aSwitch = findViewById(R.id.screenoff_switch);
+        if (keyCode == scrOffKey) aSwitch.setChecked(true);
+        if (keyCode == scrOnKey) aSwitch.setChecked(false);
+        return true;
+    }
+
+    private final Shizuku.OnRequestPermissionResultListener RL = (requestCode, grantResult) -> check();
+
+    private void check() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        if (!isPermissionResultListenerRegistered) {
+            Shizuku.addRequestPermissionResultListener(RL);
+            isPermissionResultListenerRegistered = true;
+        }
+        boolean hasPerm = false;
+        try {
+            if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) hasPerm = true;
+            else Shizuku.requestPermission(0);
+        } catch (Exception e) {
+            if (checkSelfPermission("moe.shizuku.manager.permission.API_V23") == PackageManager.PERMISSION_GRANTED) hasPerm = true;
+            if (e instanceof IllegalStateException) Toast.makeText(this, R.string.shizuku_notrun, Toast.LENGTH_SHORT).show();
+        }
+        if (hasPerm) {
+            final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
+            final String serviceName = new ComponentName(getPackageName(), GlobalService.class.getName()).flattenToString();
+            final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
+            runShizukuCommandStatic(command + "\n" + enableAccCommand);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (isPermissionResultListenerRegistered) Shizuku.removeRequestPermissionResultListener(RL);
+        try { unregisterReceiver(mBroadcastReceiver); } catch (Exception ignored) {}
+        super.onDestroy();
+    }
+
+    public void help() {
+        new AlertDialog.Builder(this).setTitle(R.string.help_title).setMessage(R.string.help_conntent).setNegativeButton(R.string.understand, null).show();
+    }
+
+    public void showActivate() {
+        unzipFilesStatic(this);
+        final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setMessage(String.format(getString(R.string.active_steps), command))
+                .setTitle(R.string.need_active)
+                .setNeutralButton(R.string.copy_cmd, (dialogInterface, i) -> {
+                    ((ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("c", "adb shell " + command));
+                    Toast.makeText(this, String.format(getString(R.string.cmd_copy_finish), command), Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(R.string.by_root, (dialoginterface, i) -> {
+                    try {
+                        Process p = Runtime.getRuntime().exec("su");
+                        DataOutputStream o = new DataOutputStream(p.getOutputStream());
+                        o.writeBytes(command); o.flush(); o.close();
+                    } catch (IOException ignored) {
+                        Toast.makeText(this, R.string.active_failed, Toast.LENGTH_SHORT).show();
+                    }
+                });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) builder.setPositiveButton(R.string.by_shizuku, (dialogInterface, i) -> check());
+        builder.show();
     }
 }

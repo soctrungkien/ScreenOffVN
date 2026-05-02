@@ -4,7 +4,6 @@ import static java.lang.Math.abs;
 
 import android.accessibilityservice.AccessibilityService;
 import android.app.ActivityManager;
-import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -49,7 +48,6 @@ import java.util.Objects;
 
 public class GlobalService extends AccessibilityService implements SharedPreferences.OnSharedPreferenceChangeListener {
 
-
     private WindowManager windowManager;
     private WindowManager.LayoutParams params;
     private ImageView view;
@@ -60,35 +58,29 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     OrientationEventListener listener;
     IScreenOff iScreenOff = null;
 
-
     public static boolean isScreenOffServiceRunning(Context context) {
-
-        ActivityManager activityManager = (ActivityManager) context.getSystemService(ACTIVITY_SERVICE);
-
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         List<ActivityManager.RunningServiceInfo> runningServices = activityManager.getRunningServices(Integer.MAX_VALUE);
-        if (runningServices.isEmpty()) {
+        if (runningServices == null || runningServices.isEmpty()) {
             return false;
         }
-
         for (ActivityManager.RunningServiceInfo serviceInfo : runningServices) {
             if (GlobalService.class.getName().equals(serviceInfo.service.getClassName())) {
                 return true;
             }
         }
         return false;
-
     }
 
     final BroadcastReceiver myReceiver = new BroadcastReceiver() {
-
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent == null || intent.getAction() == null) return;
             switch (intent.getAction()) {
                 case "intent.screenoff.sendBinder":
                     BinderContainer binderContainer = intent.getParcelableExtra("binder");
+                    if (binderContainer == null) break;
                     IBinder binder = binderContainer.getBinder();
-                    //如果binder已经失去活性了，则不再继续解析
                     if (binder == null || !binder.pingBinder()) break;
                     iScreenOff = IScreenOff.Stub.asInterface(binder);
                     floatWindow();
@@ -97,7 +89,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     try {
                         if (iScreenOff != null) iScreenOff.updateNowScreenState(false);
                     } catch (RemoteException e) {
-                        e.printStackTrace();
+                        Log.e("GlobalService", "RemoteException on ACTION_SCREEN_OFF", e);
                     }
                     if (view != null) view.setKeepScreenOn(false);
                     if (listener != null) listener.disable();
@@ -108,7 +100,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     try {
                         if (iScreenOff != null) iScreenOff.updateNowScreenState(true);
                     } catch (RemoteException e) {
-                        e.printStackTrace();
+                        Log.e("GlobalService", "RemoteException on ACTION_SCREEN_ON", e);
                     }
                     break;
                 case "action.ScrOff":
@@ -117,11 +109,10 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     } else {
                         try {
                             if (iScreenOff != null) {
-                                // Nếu màn hình đang bật (1), thì tắt (true). Ngược lại thì bật (false).
                                 screenoff(iScreenOff.getNowScreenState() == 1);
                             }
                         } catch (RemoteException e) {
-                            e.printStackTrace();
+                            Log.e("GlobalService", "RemoteException on action.ScrOff", e);
                         }
                     }
                     break;
@@ -133,23 +124,19 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     }
                     break;
             }
-
         }
     };
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent accessibilityEvent) {
-    }
+    public void onAccessibilityEvent(AccessibilityEvent accessibilityEvent) {}
 
     @Override
-    public void onInterrupt() {
-
-    }
-
+    public void onInterrupt() {}
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String s) {
         if (s == null || s.startsWith("x") || s.startsWith("y")) return;
+        if (view == null || params == null) return;
 
         view.setVisibility(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT && sharedPreferences.getBoolean("land", false) ? View.GONE : View.VISIBLE);
         size = (int) (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, sharedPreferences.getInt("size", 50), getResources().getDisplayMetrics()));
@@ -167,30 +154,25 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         if (netControl) startServer();
         else stopServer();
         floatWindow();
-
     }
-
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         sp = getSharedPreferences("s", 0);
-
         sensity = sp.getInt("sensity", 10);
         listener = new OrientationEventListener(this) {
             @Override
             public void onOrientationChanged(int orientation) {
                 if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
                 boolean wake = ((orientation >= 360 - sensity || orientation <= sensity) || orientation >= 90 - sensity && orientation <= 90 + sensity) || orientation >= 180 - sensity && orientation <= 180 + sensity || orientation >= 270 - sensity && orientation <= 270 + sensity;
-                //下面是手机旋转准确角度与四个方向角度（0 90 180 270）的转换
                 if (wake) {
                     screenoff(false);
                     this.disable();
                 }
             }
-
         };
-        windowManager = (WindowManager) getSystemService(Service.WINDOW_SERVICE);
+        windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         GetWidthHeight();
         size = (int) (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, sp.getInt("size", 50), getResources().getDisplayMetrics()));
 
@@ -219,16 +201,12 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         netControl = sp.getBoolean("net", false);
         if (netControl) startServer();
         view.setOnTouchListener(new View.OnTouchListener() {
-            int lastX = 0;
-            int lastY = 0;
-            int paramX = 0;
-            int paramY = 0;
+            int lastX = 0, lastY = 0, paramX = 0, paramY = 0;
             long lastDown = 0, lastUp = 0;
             boolean moved = false;
 
             @Override
             public boolean onTouch(View view, MotionEvent motionEvent) {
-
                 switch (motionEvent.getAction()) {
                     case MotionEvent.ACTION_DOWN:
                         lastX = (int) motionEvent.getRawX();
@@ -243,16 +221,13 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                         }, 400);
                         break;
                     case MotionEvent.ACTION_MOVE:
-
                         int dx = (int) motionEvent.getRawX() - lastX;
                         int dy = (int) motionEvent.getRawY() - lastY;
-                        if (abs(dx) > 4 || abs(dy) > 4)
-                            moved = true;
+                        if (abs(dx) > 4 || abs(dy) > 4) moved = true;
                         if (!canmove) return true;
                         params.x = paramX + dx;
                         params.y = paramY + dy;
                         if (windowManager != null && view != null) windowManager.updateViewLayout(view, params);
-
                         break;
                     case MotionEvent.ACTION_UP:
                         lastUp = System.currentTimeMillis();
@@ -263,15 +238,13 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                         moved = false;
                         boolean isLand = getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
                         sp.edit().putInt("x" + (isLand ? "1" : "2"), params.x).putInt("y" + (isLand ? "1" : "2"), params.y).apply();
+                        break;
                 }
-
-
                 if (!doubleTap) return false;
                 switch (motionEvent.getAction()) {
                     case MotionEvent.ACTION_DOWN:
                     case MotionEvent.ACTION_OUTSIDE:
-                        if (System.currentTimeMillis() - lastDown <= 400)
-                            screenoff(false);
+                        if (System.currentTimeMillis() - lastDown <= 400) screenoff(false);
                         lastDown = System.currentTimeMillis();
                         break;
                 }
@@ -280,7 +253,6 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         });
         view.setVisibility(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT && sp.getBoolean("land", false) ? View.GONE : View.VISIBLE);
         floatWindow();
-
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -297,7 +269,6 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         sp.registerOnSharedPreferenceChangeListener(this);
     }
 
-
     void screenoff(Boolean bb) {
         try {
             if (iScreenOff == null || iScreenOff.getNowScreenState() == 0) return;
@@ -305,17 +276,14 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             if (view != null) view.setKeepScreenOn(bb);
             if (shake && bb && listener != null) listener.enable();
         } catch (RemoteException e) {
-            e.printStackTrace();
+            Log.e("GlobalService", "RemoteException on screenoff", e);
         }
-
     }
-
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
         if (!volume || event.getAction() == KeyEvent.ACTION_UP || iScreenOff == null)
             return super.onKeyEvent(event);
-
         try {
             final int keycode = event.getKeyCode();
             final int nowState = iScreenOff.getNowScreenState();
@@ -323,19 +291,17 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                 screenoff(true);
                 return true;
             }
-            if (keycode == scrOnKey && nowState == 2) {
+            if (keycode == scrOnKey && (nowState == 2 || nowState == 0)) {
                 screenoff(false);
                 return true;
             }
         } catch (RemoteException e) {
-            e.printStackTrace();
+            Log.e("GlobalService", "RemoteException on onKeyEvent", e);
         }
-
         return super.onKeyEvent(event);
     }
 
     public void floatWindow() {
-        // Luôn ẩn phím ảo theo yêu cầu
         if (false) {
             if (!exist) {
                 windowManager.addView(view, params);
@@ -347,13 +313,11 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             if (view != null) {
                 try {
                     windowManager.removeViewImmediate(view);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
                 exist = false;
             }
         }
     }
-
 
     void GetWidthHeight() {
         if (windowManager == null) return;
@@ -378,23 +342,22 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         view.setBackground(oval);
         view.setImageResource(R.drawable.fw);
         if (exist) windowManager.updateViewLayout(view, params);
-
     }
 
     @Override
     public void onDestroy() {
-        unregisterReceiver(myReceiver);
         try {
-            windowManager.removeViewImmediate(view);
-        } catch (Exception ignored) {
-        }
+            unregisterReceiver(myReceiver);
+        } catch (Exception ignored) {}
+        try {
+            if (windowManager != null && view != null) windowManager.removeViewImmediate(view);
+        } catch (Exception ignored) {}
         exist = false;
         if (listener != null) listener.disable();
         if (sp != null) sp.unregisterOnSharedPreferenceChangeListener(this);
         if (netControl) stopServer();
         super.onDestroy();
     }
-
 
     public static int port = 20000;
     private SimpleTcpServer server;
@@ -403,7 +366,6 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         if (server != null) return;
         server = new SimpleTcpServer(new SimpleTcpServer.TcpConnectionListener() {
             private final HttpRequestParser parser = new HttpRequestParser();
-
             @Override
             public void onReceive(final byte[] data) {
                 parser.add(data);
@@ -413,15 +375,12 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     parser.clear();
                 }
             }
-
             @Override
             public void onResponseSent() {
                 if (server != null) server.restart();
             }
-
         }, port);
         server.start();
-
     }
 
     void stopServer() {
@@ -432,13 +391,12 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     }
 
     private void output(HttpRequest request) {
-        if (server == null || !netControl) {
-            return;
-        }
+        if (server == null || !netControl) return;
         String target = request.getRequestTarget();
-        Log.d("TAG", "output: " + target);
         if (target.equals("/") || target.equals("/index.html")) {
-            outputHtml(buildIndexHtml(request), "200 OK");
+            outputHtml(buildIndexHtml(), "200 OK");
+        } else if (target.equals("/status")) {
+            outputJson(buildStatusJson());
         } else if (target.equals("/favicon.ico") || target.equals("/favicon.png")) {
             byte[] icon = getRoundedAppIcon();
             if (icon != null) outputPng(icon);
@@ -449,53 +407,52 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     outputHtml("Service not connected", "503 Service Unavailable");
                     return;
                 }
-                switch (target.substring(0, 3)) {
-                    case "/1?":
-                        iScreenOff.setPowerMode(false);
-                        outputHtml("", "200 OK");
-                        break;
-                    case "/2?":
-                        iScreenOff.setPowerMode(true);
-                        outputHtml("", "200 OK");
-                        break;
-                    default:
-                        outputHtml(build404Html(), "404 Not Found");
-                        break;
+                if (target.startsWith("/1?")) {
+                    iScreenOff.setPowerMode(false);
+                    outputHtml("", "200 OK");
+                } else if (target.startsWith("/2?")) {
+                    iScreenOff.setPowerMode(true);
+                    outputHtml("", "200 OK");
+                } else {
+                    outputHtml(build404Html(), "404 Not Found");
                 }
-            } catch (Exception ignored) {
-            }
-
+            } catch (Exception ignored) {}
         }
     }
 
-    private String buildIndexHtml(HttpRequest request) {
+    private String buildStatusJson() {
+        int stateInt = -1;
+        try {
+            if (iScreenOff != null) stateInt = iScreenOff.getNowScreenState();
+        } catch (RemoteException ignored) {}
+        String nowState = "Không xác định";
+        boolean isOffMode = false;
+        switch (stateInt) {
+            case 1: nowState = "Đang bật"; isOffMode = false; break;
+            case 0: nowState = "Đã tắt (Hệ thống)"; isOffMode = true; break;
+            case 2: nowState = "Đang tắt (Chạy ngầm)"; isOffMode = true; break;
+        }
+        return "{\"state\": \"" + nowState + "\", \"isOff\": " + isOffMode + "}";
+    }
+
+    private String buildIndexHtml() {
         String nowState = "Không xác định";
         boolean isOffMode = false;
         try {
             if (iScreenOff != null) {
                 int stateInt = iScreenOff.getNowScreenState();
                 switch (stateInt) {
-                    case 1: // STATE_ON
-                        nowState = "Đang bật";
-                        isOffMode = false;
-                        break;
-                    case 0: // STATE_OFF
-                        nowState = "Đã tắt (Hệ thống)";
-                        isOffMode = true;
-                        break;
-                    case 2: // STATE_SPECIAL
-                        nowState = "Đang tắt (Chạy ngầm)";
-                        isOffMode = true;
-                        break;
+                    case 1: nowState = "Đang bật"; isOffMode = false; break;
+                    case 0: nowState = "Đã tắt (Hệ thống)"; isOffMode = true; break;
+                    case 2: nowState = "Đang tắt (Chạy ngầm)"; isOffMode = true; break;
                 }
             } else {
                 nowState = "Mất kết nối với trình điều khiển";
             }
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        return Objects.requireNonNull(loadHtml("index.html"))
-                .replace("{{brand}}", Build.BRAND)
+        } catch (RemoteException ignored) {}
+        String html = loadHtml("index.html");
+        if (html == null) return "";
+        return html.replace("{{brand}}", Build.BRAND)
                 .replace("{{device}}", Build.MODEL + " Android " + Build.VERSION.RELEASE)
                 .replace("{{state}}", nowState)
                 .replace("{{checked}}", isOffMode ? "selected" : "");
@@ -506,48 +463,40 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     }
 
     private static final int BUFFER_SIZE = 1024 * 1024;
-    private static final byte LF = 0x0a;
-    private static final byte CR = 0x0d;
+    private static final byte LF = 0x0a, CR = 0x0d;
 
     private void outputHtml(String html, String responseCode) {
         String startLine = "HTTP/1.1 " + responseCode;
-        List<String> responseHeaders = new ArrayList<>();
-        responseHeaders.add("Content-Type: text/html; charset=UTF-8");
-        responseHeaders.add(String.format(Locale.getDefault(), "Content-Length: %d", html != null ? html.getBytes().length : 0));
-        StringBuilder builder = new StringBuilder();
-        builder.append(startLine).append(new String(new byte[]{CR, LF}));
-        for (String responseHeader : responseHeaders) {
-            builder.append(responseHeader).append(new String(new byte[]{CR, LF}));
-        }
-        builder.append(new String(new byte[]{CR, LF}));
-        if (html != null) builder.append(html);
-        server.output(builder.toString());
+        int length = (html != null) ? html.getBytes().length : 0;
+        String header = startLine + "\r\n" +
+                "Content-Type: text/html; charset=UTF-8\r\n" +
+                "Content-Length: " + length + "\r\n\r\n";
+        server.output(header + (html != null ? html : ""));
+    }
+
+    private void outputJson(String json) {
+        String startLine = "HTTP/1.1 200 OK";
+        int length = json.getBytes().length;
+        String header = startLine + "\r\n" +
+                "Content-Type: application/json; charset=UTF-8\r\n" +
+                "Content-Length: " + length + "\r\n\r\n";
+        server.output(header + json);
     }
 
     private void outputPng(byte[] png) {
-        String startLine = "HTTP/1.1 " + "200 OK";
-        List<String> responseHeaders = new ArrayList<>();
-        responseHeaders.add("Content-Type: image/png");
-        responseHeaders.add(String.format(Locale.getDefault(), "Content-Length: %d", png.length));
-        StringBuilder builder = new StringBuilder();
-        builder.append(startLine).append(new String(new byte[]{CR, LF}));
-        for (String responseHeader : responseHeaders) {
-            builder.append(responseHeader).append(new String(new byte[]{CR, LF}));
-        }
-        builder.append(new String(new byte[]{CR, LF}));
-        byte[] headerField = builder.toString().getBytes();
-        byte[] output = new byte[headerField.length + png.length];
-        System.arraycopy(headerField, 0, output, 0, headerField.length);
-        System.arraycopy(png, 0, output, headerField.length, png.length);
+        String header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: image/png\r\n" +
+                "Content-Length: " + png.length + "\r\n\r\n";
+        byte[] headerBytes = header.getBytes();
+        byte[] output = new byte[headerBytes.length + png.length];
+        System.arraycopy(headerBytes, 0, output, 0, headerBytes.length);
+        System.arraycopy(png, 0, output, headerBytes.length, png.length);
         server.output(output);
     }
 
     private String loadHtml(String fileName) {
         byte[] binary = loadBinary(fileName);
-        if (binary == null) {
-            return null;
-        }
-        return new String(binary);
+        return (binary == null) ? null : new String(binary);
     }
 
     private byte[] getRoundedAppIcon() {
@@ -562,54 +511,32 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                 drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
                 drawable.draw(canvas);
             }
-
             int size = Math.min(bitmap.getWidth(), bitmap.getHeight());
             Bitmap output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(output);
-            
             final Paint paint = new Paint();
             final Rect rect = new Rect(0, 0, size, size);
-            final RectF rectF = new RectF(rect);
-            final float roundPx = size * 0.2f; // Bo góc 20%
-
+            final float roundPx = size * 0.2f;
             paint.setAntiAlias(true);
-            canvas.drawARGB(0, 0, 0, 0);
-            canvas.drawRoundRect(rectF, roundPx, roundPx, paint);
+            canvas.drawRoundRect(new RectF(rect), roundPx, roundPx, paint);
             paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
-            canvas.drawBitmap(bitmap, rect, rect, paint);
-
+            canvas.drawBitmap(bitmap, null, rect, paint);
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             output.compress(Bitmap.CompressFormat.PNG, 100, stream);
             return stream.toByteArray();
-        } catch (Exception e) {
-            return null;
-        }
+        } catch (Exception e) { return null; }
     }
 
     private byte[] loadBinary(String fileName) {
-        try {
-            InputStream is = getAssets().open(fileName);
-            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        try (InputStream is = getAssets().open(fileName);
+             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+             BufferedInputStream bis = new BufferedInputStream(is, BUFFER_SIZE)) {
             byte[] chunk = new byte[BUFFER_SIZE];
-            BufferedInputStream bis = new BufferedInputStream(is, BUFFER_SIZE);
-            try {
-                int len;
-                while ((len = bis.read(chunk, 0, BUFFER_SIZE)) > 0) {
-                    byteStream.write(chunk, 0, len);
-                }
-                return byteStream.toByteArray();
-            } finally {
-                try {
-                    bis.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            int len;
+            while ((len = bis.read(chunk, 0, BUFFER_SIZE)) > 0) {
+                byteStream.write(chunk, 0, len);
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
+            return byteStream.toByteArray();
+        } catch (IOException e) { return null; }
     }
-
-
 }
