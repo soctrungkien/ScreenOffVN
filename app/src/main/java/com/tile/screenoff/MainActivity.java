@@ -31,12 +31,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -68,7 +65,6 @@ public class MainActivity extends Activity {
             if (!isServiceOK) {
                 tryAutoActivate();
             }
-            checkPermissionsAuto();
             checkHandler.postDelayed(this, 3000);
         }
     };
@@ -161,7 +157,9 @@ public class MainActivity extends Activity {
     }
 
     private void checkPermissionsAuto() {
-        if (isRequestingPermission) return;
+        if (isRequestingPermission || isServiceOK) return;
+
+        // 1. Quyền ghi đè lên ứng dụng khác (Appear on top)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             isRequestingPermission = true;
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
@@ -169,6 +167,8 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Vui lòng cấp quyền 'Xuất hiện trên cùng'", Toast.LENGTH_LONG).show();
             return;
         }
+
+        // 2. Quyền tối ưu hóa pin (Battery Optimization)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
@@ -185,6 +185,8 @@ public class MainActivity extends Activity {
                 return;
             }
         }
+
+        // 3. Quyền Hỗ trợ (Accessibility)
         if (!isAccessibilityServiceEnabled(this, GlobalService.class)) {
             isRequestingPermission = true;
             Toast.makeText(this, "Vui lòng bật dịch vụ Hỗ trợ cho ứng dụng", Toast.LENGTH_LONG).show();
@@ -258,7 +260,7 @@ public class MainActivity extends Activity {
         SeekBar sd = findViewById(R.id.sd);
         sd.setProgress(sp.getInt("sensity", 10));
         EditText ed = findViewById(R.id.ed);
-        ed.setText("" + sp.getInt("sensity", 10));
+        ed.setText(String.valueOf(sp.getInt("sensity", 10)));
         
         s1.setOnCheckedChangeListener((compoundButton, isChecked) -> {
             if (!isServiceOK) {
@@ -294,7 +296,7 @@ public class MainActivity extends Activity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 sp.edit().putInt("sensity", i).apply();
-                ed.setText("" + i);
+                ed.setText(String.valueOf(i));
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override
@@ -317,7 +319,7 @@ public class MainActivity extends Activity {
         });
         e1.setEnabled(s7.isChecked()); e2.setEnabled(s7.isChecked());
         scrOffKey = sp.getInt("scrOffKey", 25); scrOnKey = sp.getInt("scrOnKey", 24);
-        e1.setText("" + scrOffKey); e2.setText("" + scrOnKey);
+        e1.setText(String.valueOf(scrOffKey)); e2.setText(String.valueOf(scrOnKey));
         e1.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {}
             @Override
@@ -358,22 +360,40 @@ public class MainActivity extends Activity {
         if (GlobalService.isScreenOffServiceRunning(context)) return;
         unzipFilesStatic(context);
         final String path = context.getExternalFilesDir(null).getPath();
-        final String command = "chmod 777 " + path + "/starter.sh && sh " + path + "/starter.sh " + path;
-        final String serviceName = new ComponentName(context.getPackageName(), GlobalService.class.getName()).flattenToString();
-        final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
+        final String pkg = context.getPackageName();
+        final String serviceName = new ComponentName(pkg, GlobalService.class.getName()).flattenToString();
+        
+        // Tạo chuỗi lệnh gộp tất cả quyền và kích hoạt service
+        StringBuilder sb = new StringBuilder();
+        // 1. Chạy starter script
+        sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
+        // 2. Cấp quyền Accessibility
+        sb.append("settings put secure enabled_accessibility_services ").append(serviceName).append("\n");
+        sb.append("settings put secure accessibility_enabled 1\n");
+        // 3. Cấp quyền Overlay (Xuất hiện trên cùng)
+        sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
+        // 4. Cấp quyền Pin không hạn chế (Whitelist Battery)
+        sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
+        sb.append("exit\n");
+
+        final String fullCommand = sb.toString();
+
         new Thread(() -> {
+            // Thử bằng Root
             try {
                 Process p = Runtime.getRuntime().exec("su");
                 java.io.DataOutputStream o = new java.io.DataOutputStream(p.getOutputStream());
-                o.writeBytes(command + "\n" + enableAccCommand + "exit\n");
+                o.writeBytes(fullCommand);
                 o.flush(); o.close();
                 p.waitFor();
             } catch (Exception ignored) {}
+
+            // Thử bằng Shizuku nếu Root không được
             if (!GlobalService.isScreenOffServiceRunning(context)) {
                 try {
                     if (rikka.shizuku.Shizuku.pingBinder()) {
                         if (rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                            runShizukuCommandStatic(command + "\n" + enableAccCommand);
+                            runShizukuCommandStatic(fullCommand);
                         }
                     }
                 } catch (Exception ignored) {}
@@ -385,12 +405,13 @@ public class MainActivity extends Activity {
         try {
             Process p = rikka.shizuku.Shizuku.newProcess(new String[]{"sh"}, null, null);
             java.io.OutputStream out = p.getOutputStream();
-            out.write((cmd + "\nexit\n").getBytes());
+            out.write(cmd.getBytes());
             out.flush(); out.close();
         } catch (Exception ignored) {}
     }
 
     public static void unzipFilesStatic(Context context) {
+        if (context.getExternalFilesDir(null) == null) return;
         String path = context.getExternalFilesDir(null).getPath();
         try (InputStream is = context.getAssets().open("starter.sh");
              FileOutputStream fos = new FileOutputStream(path + "/starter.sh")) {
@@ -480,10 +501,7 @@ public class MainActivity extends Activity {
             if (e instanceof IllegalStateException) Toast.makeText(this, R.string.shizuku_notrun, Toast.LENGTH_SHORT).show();
         }
         if (hasPerm) {
-            final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
-            final String serviceName = new ComponentName(getPackageName(), GlobalService.class.getName()).flattenToString();
-            final String enableAccCommand = "settings put secure enabled_accessibility_services " + serviceName + "\nsettings put secure accessibility_enabled 1\n";
-            runShizukuCommandStatic(command + "\n" + enableAccCommand);
+            tryAutoActivate();
         }
     }
 
@@ -499,6 +517,9 @@ public class MainActivity extends Activity {
     }
 
     public void showActivate() {
+        // Trước khi hiện hướng dẫn, thử kiểm tra và yêu cầu quyền hệ thống ngay
+        checkPermissionsAuto();
+
         unzipFilesStatic(this);
         final String command = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
