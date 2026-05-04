@@ -1,0 +1,43 @@
+name: Publish to npm
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Enables manual triggering
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # --- Check if version already exists ---
+      - name: Check if version exists on npm
+        id: check_version
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Checking if package '${PACKAGE_NAME}@${VERSION}' exists on npm..."
+          if npm view "${PACKAGE_NAME}@${VERSION}" version > /dev/null 2>&1; then
+            echo "Version ${VERSION} of ${PACKAGE_NAME} already exists on npm. Skipping publish."
+            echo "skip_publish=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version ${VERSION} of ${PACKAGE_NAME} does not exist on npm. Proceeding with publish."
+            echo "skip_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      # --- Publish Step ---
+      - name: Publish to npm
+        # Only run this step if check_version determined skip_publish is 'false'
+        if: steps.check_version.outputs.skip_publish == 'false'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
