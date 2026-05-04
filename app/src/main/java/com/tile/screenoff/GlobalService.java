@@ -348,7 +348,37 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         } catch (RemoteException ignored) {}
         String html = loadHtml("index.html");
         if (html == null) return "";
-        return html.replace("{{brand}}", Build.BRAND).replace("{{device}}", Build.MODEL + " Android " + Build.VERSION.RELEASE).replace("{{state}}", nowState).replace("{{checked}}", isOffMode ? "selected" : "");
+
+        String ip = "127.0.0.1";
+        try {
+            for (java.util.Enumeration<java.net.NetworkInterface> en = java.net.NetworkInterface.getNetworkInterfaces(); en.hasMoreElements(); ) {
+                java.net.NetworkInterface intf = en.nextElement();
+                for (java.util.Enumeration<java.net.InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
+                    java.net.InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && inetAddress instanceof java.net.Inet4Address) {
+                        ip = inetAddress.getHostAddress();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        String serverUrl = "http://" + ip + ":" + port + "/";
+
+        String btName = Build.BRAND;
+        try {
+            android.bluetooth.BluetoothAdapter adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+            if (adapter != null) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    String name = adapter.getName();
+                    if (name != null) btName = name;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return html.replace("{{brand}}", btName)
+                .replace("{{device}}", Build.MODEL + " Android " + Build.VERSION.RELEASE)
+                .replace("{{state}}", nowState)
+                .replace("{{checked}}", isOffMode ? "selected" : "")
+                .replace("{{url}}", serverUrl);
     }
 
     private String build404Html() { return loadHtml("404.html"); }

@@ -57,6 +57,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import android.bluetooth.BluetoothAdapter;
 import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
@@ -142,6 +143,12 @@ public class MainActivity extends Activity {
 
     private void checkPermissionsAuto() {
         if (isServiceOK) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 101);
+                return;
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
             Toast.makeText(this, "Cấp quyền 'Xuất hiện trên cùng'", Toast.LENGTH_SHORT).show();
@@ -262,6 +269,8 @@ public class MainActivity extends Activity {
         StringBuilder sb = new StringBuilder();
         sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
         sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
+        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_CONNECT\n");
+        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_SCAN\n");
         sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
         sb.append("exit\n");
         final String cmd = sb.toString();
