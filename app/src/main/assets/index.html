@@ -7,14 +7,7 @@
     <title>Điều khiển ScreenOff</title>
 
     <!-- Material Web Components & QR Code -->
-    <script type="importmap">
-    {
-        "imports": {
-            "@material/web/": "https://esm.run/@material/web/",
-            "qr-code-styling": "https://esm.run/qr-code-styling"
-        }
-    }
-    </script>
+    <script type="module" src="./index.js"></script>
     <script type="module">
         import '@material/web/all.js';
         import QRCodeStyling from 'qr-code-styling';
@@ -82,7 +75,12 @@
     </script>
 
     <!-- Google Sans / Roboto Flex for Pixel Look -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Roboto Flex';
+            src: url('RobotoFlex.tff') format('tff')
+        }
+    </style>
 
     <style>
         :root {
