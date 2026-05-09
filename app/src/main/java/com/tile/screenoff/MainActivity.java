@@ -418,57 +418,80 @@ public class MainActivity extends AppCompatActivity {
         unzipFilesStatic(context);
         final String path = context.getExternalFilesDir(null).getPath();
         final String pkg = context.getPackageName();
-        
-        StringBuilder sb = new StringBuilder();
-        // Use a more robust command sequence
-        sb.append("chmod 777 ").append(path).append("/starter.sh 2>/dev/null; ");
-        sb.append("sh ").append(path).append("/starter.sh ").append(path).append("\n");
-        sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
-        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_CONNECT 2>/dev/null\n");
-        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_SCAN 2>/dev/null\n");
-        sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
-        sb.append("settings put secure enabled_accessibility_services ").append(pkg).append("/.GlobalService\n");
-        sb.append("settings put secure accessibility_enabled 1\n");
-        sb.append("exit\n");
-        final String cmd = sb.toString();
 
         new Thread(() -> {
-            try {
-                appendLog(context, "Executing Root command...");
-                Process p = Runtime.getRuntime().exec("su");
-                DataOutputStream o = new DataOutputStream(p.getOutputStream());
-                o.writeBytes(cmd); o.flush(); o.close();
-                captureOutput(context, p.getInputStream(), "ROOT_STDOUT");
-                captureOutput(context, p.getErrorStream(), "ROOT_STDERR");
-                int res = p.waitFor();
-                appendLog(context, "Root command finished with exit code: " + res);
-            } catch (Exception e) {
-                appendLog(context, "Root execution failed: " + e.getMessage());
-            }
+            appendLog(context, "Starting Activation Sequence...");
 
-            if (!GlobalService.isScreenOffServiceRunning(context)) {
-                try { 
-                    if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                        appendLog(context, "Executing Shizuku command...");
-                        runShizukuCommandStatic(context, cmd); 
-                    }
-                }
-                catch (Exception e) {
-                    appendLog(context, "Shizuku execution failed: " + e.getMessage());
-                }
-            }
+            // Step 1: Permissions
+            String permCmd = String.format(
+                "appops set %s SYSTEM_ALERT_WINDOW allow; " +
+                "pm grant %s android.permission.WRITE_SECURE_SETTINGS 2>/dev/null; " +
+                "pm grant %s android.permission.BLUETOOTH_CONNECT 2>/dev/null; " +
+                "pm grant %s android.permission.BLUETOOTH_SCAN 2>/dev/null; " +
+                "dumpsys deviceidle whitelist +%s",
+                pkg, pkg, pkg, pkg, pkg
+            );
+            executeCommand(context, permCmd, "PERMISSIONS");
+
+            // Step 2: Accessibility Service
+            String accCmd = String.format(
+                "curr=$(settings get secure enabled_accessibility_services); " +
+                "service=\"%s/.GlobalService\"; " +
+                "if [[ \"$curr\" != *\"$service\"* ]]; then " +
+                "if [[ \"$curr\" == \"null\" || \"$curr\" == \"\" ]]; then new=\"$service\"; else new=\"$curr:$service\"; fi; " +
+                "settings put secure enabled_accessibility_services \"$new\"; " +
+                "fi; " +
+                "settings put secure accessibility_enabled 1",
+                pkg
+            );
+            executeCommand(context, accCmd, "ACCESSIBILITY");
+
+            // Step 3: Screen Controller (Shell Service)
+            String shellCmd = String.format(
+                "chmod 777 %s/starter.sh 2>/dev/null; " +
+                "sh %s/starter.sh %s",
+                path, path, path
+            );
+            executeCommand(context, shellCmd, "SHELL_SERVICE");
+
+            appendLog(context, "Activation Sequence Completed.");
         }).start();
     }
 
-    private static void runShizukuCommandStatic(Context context, String cmd) {
+    private static void executeCommand(Context context, String cmd, String label) {
+        appendLog(context, "Executing " + label + "...");
+        
+        // Try Root first
+        boolean rootSuccess = false;
         try {
-            Process p = Shizuku.newProcess(new String[]{"sh"}, null, null);
-            java.io.OutputStream out = p.getOutputStream();
-            out.write(cmd.getBytes()); out.flush(); out.close();
-            captureOutput(context, p.getInputStream(), "SHIZUKU_STDOUT");
-            captureOutput(context, p.getErrorStream(), "SHIZUKU_STDERR");
+            Process p = Runtime.getRuntime().exec("su");
+            DataOutputStream o = new DataOutputStream(p.getOutputStream());
+            o.writeBytes(cmd + "\nexit\n"); o.flush(); o.close();
+            captureOutput(context, p.getInputStream(), "ROOT_" + label + "_STDOUT");
+            captureOutput(context, p.getErrorStream(), "ROOT_" + label + "_STDERR");
+            int res = p.waitFor();
+            if (res == 0) rootSuccess = true;
+            appendLog(context, "Root " + label + " finished with code: " + res);
         } catch (Exception e) {
-            appendLog(context, "Shizuku process failed: " + e.getMessage());
+            appendLog(context, "Root " + label + " failed: " + e.getMessage());
+        }
+
+        // If root failed or not available, try Shizuku
+        if (!rootSuccess) {
+            try {
+                if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                    appendLog(context, "Trying Shizuku for " + label + "...");
+                    Process p = Shizuku.newProcess(new String[]{"sh"}, null, null);
+                    java.io.OutputStream out = p.getOutputStream();
+                    out.write((cmd + "\nexit\n").getBytes()); out.flush(); out.close();
+                    captureOutput(context, p.getInputStream(), "SHIZUKU_" + label + "_STDOUT");
+                    captureOutput(context, p.getErrorStream(), "SHIZUKU_" + label + "_STDERR");
+                    int res = p.waitFor();
+                    appendLog(context, "Shizuku " + label + " finished with code: " + res);
+                }
+            } catch (Exception e) {
+                appendLog(context, "Shizuku " + label + " failed: " + e.getMessage());
+            }
         }
     }
 

@@ -107,57 +107,72 @@ public class ScreenController {
     }
 
     public static void main(String[] args) {
-
         if (Looper.getMainLooper() == null) {
             Looper.prepareMainLooper();
         }
 
-        Log.e("getBuiltInDisplay", "Android 14" + useDisplayControl);
-        //检查权限
+        System.out.println("Started"); // Added to match log expectations
+        Log.d("ScreenController", "Main started");
+
+        if (!checkPermissions()) {
+            System.exit(-1);
+            return;
+        }
+
+        initializeDisplayMethods();
+
+        if (registerBinderService()) {
+            System.out.println("Added: com.tile.screenoff");
+            setupShutdownHook();
+            Looper.loop();
+        } else {
+            System.err.println("Failed to register binder service!");
+            System.exit(-1);
+        }
+
+        cleanup();
+        System.out.println("Stopped");
+        System.exit(0);
+    }
+
+    private static boolean checkPermissions() {
         int uid = android.os.Process.myUid();
         if (uid != 0 && uid != 2000) {
-            System.err.printf("Insufficient permission! Need to be launched by adb (uid 2000) or root (uid 0), but your uid is %d \n", uid);
-            System.exit(-1);
-            return;
+            System.err.printf("Insufficient permission! uid: %d\n", uid);
+            return false;
         }
+        return true;
+    }
 
-        System.out.println("Start ScreenController Service.");
-
-        isBroadcastSent = sendBinderToAppByStickyBroadcast();//发送广播，将binder传给APP
-        if (!isBroadcastSent) {
-            System.err.println("Failed to send broadcast!");
-            System.exit(-1);
-            return;
+    private static void initializeDisplayMethods() {
+        Log.i("ScreenController", "Initializing display methods. Android 14+: " + useDisplayControl);
+        try {
+            getGetBuiltInDisplayMethod();
+            getSetDisplayPowerModeMethod();
+        } catch (NoSuchMethodException e) {
+            Log.e("ScreenController", "Failed to find hidden methods", e);
         }
+    }
 
-        //加入JVM异常关闭时的处理程序
+    private static boolean registerBinderService() {
+        isBroadcastSent = sendBinderToAppByStickyBroadcast();
+        return isBroadcastSent;
+    }
+
+    private static void setupShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                if (isBroadcastSent) isBroadcastSent = !removeStickyBroadcast();
+                cleanup();
             }
         });
+    }
 
-//        try {
-//            Scanner scanner = new Scanner(System.in);
-//            //用来保持进程不退出，同时如果用户输入exit则程序退出
-//            String inline;
-//            while ((inline = scanner.nextLine()) != null) {
-//                if (inline.equals("exit"))
-//                    break;
-//            }
-//            scanner.close();
-//        } catch (Exception unused) {
-//            //用户使用nohup命令启动，scanner捕捉不到任何输入,会抛出异常。
-//            while (true) ;
-//        }
-
-        Looper.loop();
-
-
-        if (isBroadcastSent) isBroadcastSent = !removeStickyBroadcast();
-        System.out.println("Stop ScreenController Service.\n");
-        System.exit(0);
+    private static void cleanup() {
+        if (isBroadcastSent) {
+            removeStickyBroadcast();
+            isBroadcastSent = false;
+        }
     }
 
     private static void stopListenVolumeKey() {
