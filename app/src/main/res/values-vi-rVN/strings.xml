@@ -18,7 +18,7 @@
     <string name="by_root">Kích hoạt bằng Root</string>
     <string name="active_failed">Kích hoạt thất bại</string>
     <string name="by_shizuku">Kích hoạt bằng Shizuku</string>
-    <string name="key_pressed">Bạn đã nhấn phím %s (Mã phím: %d)</string>
+    <string name="key_pressed">Bạn đã nhấn phím %1$s (Mã phím: %2$d)</string>
     <string name="shizuku_notrun">Shizuku hiện không hoạt động</string>
     <string name="help_title">Hướng dẫn sử dụng</string>
     <string name="help_conntent">Bạn có thể nhấn vào tiêu đề \"Chạy khi tắt màn hình\" tại màn hình chính để xem lại hướng dẫn này.\n\nKhi chế độ này hoạt động, các ứng dụng sẽ tiếp tục chạy bình thường như khi màn hình đang bật. Hệ thống sẽ không tự động ngủ nếu bạn đã bật \"Điều khiển tổng thể\".\n\nTính năng \"Nhấc máy sáng màn hình\" sẽ giám sát cảm biến hướng của thiết bị. Việc này tiêu tốn rất ít pin, hầu như không ảnh hưởng đến thời lượng sử dụng.\n\nLưu ý:\n- Đa số thiết bị sẽ khóa cảm ứng khi màn hình tắt theo cách này. Tính năng \"Chạm đúp sáng màn hình\" chỉ hoạt động trên một số dòng máy nhất định (như Samsung hỗ trợ S-Pen, iQOO 9, Redmi Note 1...).\n- Một số dòng máy (Huawei HarmonyOS, Origin OS...) có thể khóa cả phím cứng. Nếu gặp trường hợp này, hãy liên hệ với tôi để cùng nghiên cứu giải pháp.\n- Với màn hình LCD, có thể vẫn thấy đèn nền mờ. Bạn nên giảm độ sáng xuống mức tối thiểu trước khi sử dụng để đạt hiệu quả tốt nhất.</string>
