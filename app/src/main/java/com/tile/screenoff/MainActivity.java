@@ -38,6 +38,7 @@ import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.EditText;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.color.DynamicColors;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -140,6 +141,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
         setTheme(R.style.AppTheme);
         Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
             Log.e("ScreenOffCrash", "Uncaught exception", e);

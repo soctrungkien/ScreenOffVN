@@ -13,6 +13,6 @@ export CLASSPATH="$TG"
 nohup app_process /system/bin com.tile.screenoff.ScreenController > /dev/null 2>&1 &
 echo "Started"
 else
-echo "Error: File not found at $ON"
+echo "Error: File $ON not found"
 exit 1
 fi
