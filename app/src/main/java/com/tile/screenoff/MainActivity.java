@@ -398,7 +398,7 @@ public class MainActivity extends AppCompatActivity {
         int surfaceAttr = com.google.android.material.R.attr.colorSurfaceContainerHigh;
         int surfaceColor = MaterialColors.getColor(this, surfaceAttr, isNight ? 0xff303034 : 0xffe4e2e6);
         float d = getResources().getDisplayMetrics().density;
-        ShapeDrawable backgroundDrawable = new ShapeDrawable(new RoundRectShape(new float[]{24*d, 24*d, 24*d, 24*d, 24*d, 24*d, 24*d, 24*d}, null, null));
+        ShapeDrawable backgroundDrawable = new ShapeDrawable(new RoundRectShape(new float[]{28*d, 28*d, 28*d, 28*d, 28*d, 28*d, 28*d, 28*d}, null, null));
         backgroundDrawable.getPaint().setColor(surfaceColor);
         findViewById(R.id.ll).setBackground(backgroundDrawable);
 
