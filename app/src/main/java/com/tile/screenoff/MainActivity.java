@@ -88,9 +88,9 @@ public class MainActivity extends AppCompatActivity {
         }
         Log.d("ScreenOffShell", log);
 
-        if (context != null) {
+        if (context != null && context.getExternalFilesDir(null) != null) {
             new Thread(() -> {
-                try (java.io.FileWriter fw = new java.io.FileWriter(new java.io.File(context.getFilesDir(), "shell_logs.txt"), true);
+                try (java.io.FileWriter fw = new java.io.FileWriter(new java.io.File(context.getExternalFilesDir(null), "shell_logs.txt"), true);
                      java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
                     bw.write(formattedLog);
                     bw.newLine();
@@ -150,16 +150,19 @@ public class MainActivity extends AppCompatActivity {
             String trace = sw.toString();
             
             // Write to log file synchronously before crash
-            try (java.io.FileWriter fw = new java.io.FileWriter(new java.io.File(getFilesDir(), "shell_logs.txt"), true);
-                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
-                bw.write("\n" + "=".repeat(20) + " CRASH LOG DETECTED " + "=".repeat(20) + "\n");
-                bw.write("Time: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new java.util.Date()) + "\n");
-                bw.write("Device: " + Build.BRAND + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ", API " + Build.VERSION.SDK_INT + ")\n");
-                bw.write("Message: " + e.getMessage() + "\n\n");
-                bw.write("Stack Trace:\n");
-                bw.write(trace);
-                bw.write("\n" + "=".repeat(60) + "\n");
-                bw.flush();
+            try {
+                java.io.File logFile = new java.io.File(getExternalFilesDir(null), "shell_logs.txt");
+                try (java.io.FileWriter fw = new java.io.FileWriter(logFile, true);
+                     java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                    bw.write("\n" + "=".repeat(20) + " CRASH LOG DETECTED " + "=".repeat(20) + "\n");
+                    bw.write("Time: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new java.util.Date()) + "\n");
+                    bw.write("Device: " + Build.BRAND + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ", API " + Build.VERSION.SDK_INT + ")\n");
+                    bw.write("Message: " + e.getMessage() + "\n\n");
+                    bw.write("Stack Trace:\n");
+                    bw.write(trace);
+                    bw.write("\n" + "=".repeat(60) + "\n");
+                    bw.flush();
+                }
             } catch (Exception ignored) {}
 
             new Thread(() -> {
@@ -361,12 +364,15 @@ public class MainActivity extends AppCompatActivity {
             synchronized (logBuffer) { logBuffer.setLength(0); }
             TextView tv = findViewById(R.id.log_text);
             if (tv != null) tv.setText(R.string.shell_logs);
-            new java.io.File(getFilesDir(), "shell_logs.txt").delete();
+            if (getExternalFilesDir(null) != null) {
+                new java.io.File(getExternalFilesDir(null), "shell_logs.txt").delete();
+            }
             Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show();
         });
 
         findViewById(R.id.view_log_btn).setOnClickListener(v -> {
-            java.io.File file = new java.io.File(getFilesDir(), "shell_logs.txt");
+            if (getExternalFilesDir(null) == null) return;
+            java.io.File file = new java.io.File(getExternalFilesDir(null), "shell_logs.txt");
             if (!file.exists()) {
                 Toast.makeText(this, "Log file not found", Toast.LENGTH_SHORT).show();
                 return;
