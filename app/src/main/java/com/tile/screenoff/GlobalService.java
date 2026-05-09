@@ -323,10 +323,16 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
 
             byte[] assetData = loadBinary(assetPath);
             if (assetData == null && !assetPath.contains(".")) {
-                // Try as directory (e.g. /lit/ -> /lit/index.js)
-                String altPath = assetPath + (assetPath.endsWith("/") ? "" : "/") + "index.js";
-                assetData = loadBinary(altPath);
-                if (assetData != null) assetPath = altPath;
+                // Try as directory with common index files
+                String[] indexFiles = {"index.js", "tslib.js", "lit-element.js", "lit-html.js"};
+                for (String idx : indexFiles) {
+                    String altPath = assetPath + (assetPath.endsWith("/") ? "" : "/") + idx;
+                    assetData = loadBinary(altPath);
+                    if (assetData != null) {
+                        assetPath = altPath;
+                        break;
+                    }
+                }
             }
 
             if (assetData != null) {
