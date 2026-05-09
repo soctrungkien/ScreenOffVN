@@ -1,9 +1,7 @@
 #!/system/bin/sh
 pm grant com.tile.screenoff android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
 BP=$1
-if [ -z "$BP" ]; then
-BP="/sdcard/Android/data/com.tile.screenoff/files"
-fi
+[ -z "$BP" ] && BP="/sdcard/Android/data/com.tile.screenoff/files"
 ON="$BP/ScreenController.dex"
 TG="/data/local/tmp/ScreenController.dex"
 if [ -f "$ON" ]; then
@@ -13,6 +11,6 @@ export CLASSPATH="$TG"
 nohup app_process /system/bin com.tile.screenoff.ScreenController > /dev/null 2>&1 &
 echo "Started"
 else
-echo "Error: File $ON not found"
+echo "Error: dex not found"
 exit 1
 fi

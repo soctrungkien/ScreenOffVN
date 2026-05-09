@@ -185,12 +185,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.main);
 
         // Adjust window size for floating effect
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
-        lp.copyFrom(window.getAttributes());
-        lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.9);
-        lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
-        lp.gravity = android.view.Gravity.CENTER;
-        window.setAttributes(lp);
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int width = (int) (metrics.widthPixels * 0.85);
+        int height = (int) (metrics.heightPixels * 0.7); // Cap height to 70% of screen
+        window.setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT);
+        
+        // Ensure it doesn't exceed the cap
+        window.getAttributes().height = Math.min(window.getAttributes().height, height);
+        window.setGravity(android.view.Gravity.CENTER);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.setNavigationBarContrastEnforced(false);
         boolean isNight = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_YES) == Configuration.UI_MODE_NIGHT_YES;
@@ -352,10 +354,13 @@ public class MainActivity extends AppCompatActivity {
                 updateSwitchState();
                 stopBtn.setVisibility(View.GONE);
                 MaterialButton activeBtn = findViewById(R.id.activate_button);
-                activeBtn.setText(R.string.not_ok);
-                activeBtn.setTextColor(ContextCompat.getColor(this, R.color.wrong));
-                activeBtn.setOnClickListener(v1 -> showActivate());
-                findViewById(R.id.screenoff_switch).setEnabled(false);
+                if (activeBtn != null) {
+                    activeBtn.setText(R.string.not_ok);
+                    activeBtn.setTextColor(ContextCompat.getColor(this, R.color.wrong));
+                    activeBtn.setOnClickListener(v1 -> showActivate());
+                }
+                MaterialSwitch sw = findViewById(R.id.screenoff_switch);
+                if (sw != null) sw.setEnabled(false);
             });
         }
 
