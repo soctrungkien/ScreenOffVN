@@ -40,4 +40,6 @@
     <string name="net_ctl">Network control screen state</string>
     <string name="stop_service">Stop Service</string>
     <string name="shell_logs">Shell Logs</string>
+    <string name="view_log_file">View Log File</string>
+    <string name="clear_logs">Clear Logs</string>
 </resources>

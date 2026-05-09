@@ -40,4 +40,6 @@
     <string name="net_ctl">Điều khiển qua mạng LAN</string>
     <string name="stop_service">Dừng dịch vụ</string>
     <string name="shell_logs">Nhật ký hệ thống</string>
+    <string name="view_log_file">Xem file log</string>
+    <string name="clear_logs">Xóa nhật ký</string>
 </resources>

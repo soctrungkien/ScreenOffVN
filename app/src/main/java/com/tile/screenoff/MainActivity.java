@@ -87,6 +87,19 @@ public class MainActivity extends AppCompatActivity {
             if (logBuffer.length() > 10000) logBuffer.delete(0, 2000);
         }
         Log.d("ScreenOffShell", log);
+
+        if (context != null) {
+            new Thread(() -> {
+                try (java.io.FileWriter fw = new java.io.FileWriter(new java.io.File(context.getFilesDir(), "shell_logs.txt"), true);
+                     java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                    bw.write(formattedLog);
+                    bw.newLine();
+                } catch (IOException e) {
+                    Log.e("ScreenOffShell", "Failed to write log to file", e);
+                }
+            }).start();
+        }
+
         if (activityRef != null) {
             MainActivity activity = activityRef.get();
             if (activity != null) {
@@ -323,6 +336,35 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.screenoff_switch).setEnabled(false);
             });
         }
+
+        findViewById(R.id.clear_log_btn).setOnClickListener(v -> {
+            synchronized (logBuffer) { logBuffer.setLength(0); }
+            TextView tv = findViewById(R.id.log_text);
+            if (tv != null) tv.setText(R.string.shell_logs);
+            new java.io.File(getFilesDir(), "shell_logs.txt").delete();
+            Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show();
+        });
+
+        findViewById(R.id.view_log_btn).setOnClickListener(v -> {
+            java.io.File file = new java.io.File(getFilesDir(), "shell_logs.txt");
+            if (!file.exists()) {
+                Toast.makeText(this, "Log file not found", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            StringBuilder content = new StringBuilder();
+            try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(file))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+            } catch (IOException e) {
+                Toast.makeText(this, "Error reading log file", Toast.LENGTH_SHORT).show();
+            }
+            new AlertDialog.Builder(this).setTitle("Log File: shell_logs.txt")
+                .setMessage(content.toString())
+                .setPositiveButton(R.string.understand, null)
+                .show();
+        });
 
         findViewById(R.id.title_text).setOnClickListener(v -> help());
         findViewById(R.id.activate_button).setOnClickListener(v -> showActivate());
