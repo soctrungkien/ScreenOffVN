@@ -329,6 +329,14 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                 if (iScreenOff == null) { sendHtmlResponse(socket, "Service not connected", "503 Service Unavailable"); return; }
                 if (cleanTarget.equals("/1")) { iScreenOff.setPowerMode(false); sendHtmlResponse(socket, "", "200 OK"); }
                 else if (cleanTarget.equals("/2")) { iScreenOff.setPowerMode(true); sendHtmlResponse(socket, "", "200 OK"); }
+                else if (cleanTarget.equals("/stop")) {
+                    sendHtmlResponse(socket, "Stopping service...", "200 OK");
+                    new Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                        try { if (iScreenOff != null) iScreenOff.closeAndExit(); } catch (Exception ignored) {}
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) disableSelf();
+                        else stopSelf();
+                    }, 500);
+                }
                 else sendHtmlResponse(socket, build404Html(), "404 Not Found");
             } catch (Exception ignored) {}
         }

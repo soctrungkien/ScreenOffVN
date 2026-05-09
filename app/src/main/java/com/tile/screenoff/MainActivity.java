@@ -38,7 +38,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
-import android.widget.Switch;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -46,6 +46,7 @@ import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -74,6 +75,41 @@ public class MainActivity extends Activity {
     };
     private int scrOffKey, scrOnKey;
     public IScreenOff iScreenOff = null;
+    private static final StringBuilder logBuffer = new StringBuilder();
+    private static WeakReference<MainActivity> activityRef = new WeakReference<>(null);
+
+    private static void appendLog(Context context, String log) {
+        String formattedLog = "[" + new java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new java.util.Date()) + "] " + log;
+        synchronized (logBuffer) {
+            logBuffer.append(formattedLog).append("\n");
+            if (logBuffer.length() > 10000) logBuffer.delete(0, 2000);
+        }
+        Log.d("ScreenOffShell", log);
+        if (activityRef != null) {
+            MainActivity activity = activityRef.get();
+            if (activity != null) {
+                activity.runOnUiThread(() -> {
+                    TextView tv = activity.findViewById(R.id.log_text);
+                    if (tv != null) {
+                        if (tv.getText().toString().equals(activity.getString(R.string.shell_logs))) tv.setText("");
+                        tv.append(formattedLog + "\n");
+                    }
+                });
+            }
+        }
+    }
+
+    private static void captureOutput(Context context, InputStream is, String prefix) {
+        new Thread(() -> {
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    appendLog(context, prefix + ": " + line);
+                }
+            } catch (IOException ignored) {}
+        }).start();
+    }
+
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -108,6 +144,13 @@ public class MainActivity extends Activity {
         }
 
         setButtonsOnclick(isNight, sp);
+        activityRef = new WeakReference<>(this);
+        TextView logTv = findViewById(R.id.log_text);
+        if (logTv != null) {
+            synchronized (logBuffer) {
+                if (logBuffer.length() > 0) logTv.setText(logBuffer.toString());
+            }
+        }
         IntentFilter filter = new IntentFilter("intent.screenoff.sendBinder");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(mBroadcastReceiver, filter, Context.RECEIVER_EXPORTED);
         else registerReceiver(mBroadcastReceiver, filter);
@@ -124,7 +167,7 @@ public class MainActivity extends Activity {
         try {
             if (iScreenOff != null) {
                 int state = iScreenOff.getNowScreenState();
-                Switch aSwitch = findViewById(R.id.screenoff_switch);
+                MaterialSwitch aSwitch = findViewById(R.id.screenoff_switch);
                 aSwitch.setChecked(state == 1);
             }
         } catch (RemoteException e) {
@@ -208,7 +251,7 @@ public class MainActivity extends Activity {
             findViewById(R.id.left).setVisibility(View.VISIBLE); findViewById(R.id.right).setVisibility(View.VISIBLE);
         }
         EditText e1 = findViewById(R.id.e1), e2 = findViewById(R.id.e2);
-        Switch s1 = findViewById(R.id.s1), s6 = findViewById(R.id.s6), s7 = findViewById(R.id.s7), s8 = findViewById(R.id.s8);
+        MaterialSwitch s1 = findViewById(R.id.s1), s6 = findViewById(R.id.s6), s7 = findViewById(R.id.s7), s8 = findViewById(R.id.s8);
         s1.setChecked(isAccessibilityServiceEnabled(this, GlobalService.class));
         s6.setChecked(sp.getBoolean("shake", false)); s7.setChecked(sp.getBoolean("volume", false)); s8.setChecked(sp.getBoolean("net", false));
         SeekBar sd = findViewById(R.id.sd); sd.setProgress(sp.getInt("sensity", 10));
@@ -247,13 +290,33 @@ public class MainActivity extends Activity {
             @Override public void onTextChanged(CharSequence s, int i, int i1, int i2) { if (s.length() > 0) { scrOnKey = Integer.parseInt(s.toString()); sp.edit().putInt("scrOnKey", scrOnKey).apply(); } }
             @Override public void afterTextChanged(Editable s) {}
         });
+
+        Button stopBtn = findViewById(R.id.stop_button);
+        if (stopBtn != null) {
+            stopBtn.setOnClickListener(v -> {
+                try {
+                    sendBroadcast(new Intent("intent.screenoff.exit"));
+                    if (iScreenOff != null) iScreenOff.closeAndExit();
+                } catch (Exception ignored) {}
+                isServiceOK = false;
+                iScreenOff = null;
+                updateSwitchState();
+                stopBtn.setVisibility(View.GONE);
+                Button activeBtn = findViewById(R.id.activate_button);
+                activeBtn.setText(R.string.not_ok);
+                activeBtn.setTextColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(R.color.wrong) : 0xFFFF3D00);
+                activeBtn.setOnClickListener(v1 -> showActivate());
+                findViewById(R.id.screenoff_switch).setEnabled(false);
+            });
+        }
+
         findViewById(R.id.title_text).setOnClickListener(v -> help());
         findViewById(R.id.activate_button).setOnClickListener(v -> showActivate());
         float density = getResources().getDisplayMetrics().density;
         ShapeDrawable oval = new ShapeDrawable(new RoundRectShape(new float[]{30*density, 30*density, 30*density, 30*density, 0, 0, 0, 0}, null, null));
         oval.getPaint().setColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(isNight ? R.color.bgBlack : R.color.bgWhite) : (isNight ? 0xff303034 : 0xffe4e2e6));
         findViewById(R.id.ll).setBackground(oval);
-        Switch aSwitch = findViewById(R.id.screenoff_switch);
+        MaterialSwitch aSwitch = findViewById(R.id.screenoff_switch);
         aSwitch.setOnCheckedChangeListener((cb, b) -> { if (!isServiceOK || iScreenOff == null) return; try { iScreenOff.setPowerMode(!b); } catch (Exception ignored) {} });
         isExpand = true;
     }
@@ -277,24 +340,42 @@ public class MainActivity extends Activity {
 
         new Thread(() -> {
             try {
+                appendLog(context, "Executing Root command...");
                 Process p = Runtime.getRuntime().exec("su");
                 DataOutputStream o = new DataOutputStream(p.getOutputStream());
-                o.writeBytes(cmd); o.flush(); o.close(); p.waitFor();
-            } catch (Exception ignored) {}
+                o.writeBytes(cmd); o.flush(); o.close();
+                captureOutput(context, p.getInputStream(), "ROOT_STDOUT");
+                captureOutput(context, p.getErrorStream(), "ROOT_STDERR");
+                int res = p.waitFor();
+                appendLog(context, "Root command finished with exit code: " + res);
+            } catch (Exception e) {
+                appendLog(context, "Root execution failed: " + e.getMessage());
+            }
 
             if (!GlobalService.isScreenOffServiceRunning(context)) {
-                try { if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) runShizukuCommandStatic(cmd); }
-                catch (Exception ignored) {}
+                try { 
+                    if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                        appendLog(context, "Executing Shizuku command...");
+                        runShizukuCommandStatic(context, cmd); 
+                    }
+                }
+                catch (Exception e) {
+                    appendLog(context, "Shizuku execution failed: " + e.getMessage());
+                }
             }
         }).start();
     }
 
-    private static void runShizukuCommandStatic(String cmd) {
+    private static void runShizukuCommandStatic(Context context, String cmd) {
         try {
             Process p = Shizuku.newProcess(new String[]{"sh"}, null, null);
             java.io.OutputStream out = p.getOutputStream();
             out.write(cmd.getBytes()); out.flush(); out.close();
-        } catch (Exception ignored) {}
+            captureOutput(context, p.getInputStream(), "SHIZUKU_STDOUT");
+            captureOutput(context, p.getErrorStream(), "SHIZUKU_STDERR");
+        } catch (Exception e) {
+            appendLog(context, "Shizuku process failed: " + e.getMessage());
+        }
     }
 
     public static void unzipFilesStatic(Context context) {
@@ -327,6 +408,8 @@ public class MainActivity extends Activity {
         Button btn = findViewById(R.id.activate_button); isServiceOK = true;
         btn.setText(getString(R.string.all_ok)); btn.setTextColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(R.color.right) : 0xFF00FF00);
         btn.setOnClickListener(null);
+        Button stopBtn = findViewById(R.id.stop_button);
+        if (stopBtn != null) stopBtn.setVisibility(View.VISIBLE);
         btn.setOnLongClickListener(v -> {
             try { sendBroadcast(new Intent("intent.screenoff.exit")); if (iScreenOff != null) iScreenOff.closeAndExit(); } catch (Exception ignored) {}
             Toast.makeText(this, R.string.service_closed, Toast.LENGTH_SHORT).show(); finish(); return false;
@@ -338,7 +421,7 @@ public class MainActivity extends Activity {
     @Override public boolean onKeyDown(int k, KeyEvent ev) {
         if (isExpand) { Toast.makeText(this, String.format(Locale.getDefault(), getString(R.string.key_pressed), KeyEvent.keyCodeToString(k).replace("KEYCODE_", ""), k), Toast.LENGTH_SHORT).show(); return true; }
         if (!isServiceOK) return true;
-        Switch sw = findViewById(R.id.screenoff_switch);
+        MaterialSwitch sw = findViewById(R.id.screenoff_switch);
         if (k == scrOffKey) sw.setChecked(true); if (k == scrOnKey) sw.setChecked(false);
         return true;
     }
@@ -354,7 +437,12 @@ public class MainActivity extends Activity {
         if (hasPerm) tryAutoActivate();
     }
 
-    @Override protected void onDestroy() { if (isPermissionResultListenerRegistered) Shizuku.removeRequestPermissionResultListener(RL); try { unregisterReceiver(mBroadcastReceiver); } catch (Exception ignored) {} super.onDestroy(); }
+    @Override protected void onDestroy() { 
+        if (isPermissionResultListenerRegistered) Shizuku.removeRequestPermissionResultListener(RL); 
+        try { unregisterReceiver(mBroadcastReceiver); } catch (Exception ignored) {} 
+        activityRef = null;
+        super.onDestroy(); 
+    }
     public void help() { new AlertDialog.Builder(this).setTitle(R.string.help_title).setMessage(R.string.help_conntent).setNegativeButton(R.string.understand, null).show(); }
     public void showActivate() {
         checkPermissionsAuto(); unzipFilesStatic(this);

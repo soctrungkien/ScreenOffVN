@@ -38,4 +38,6 @@
     <string name="tile">Global Control</string>
     <string name="service_closed">Screen Off Run service closed</string>
     <string name="net_ctl">Network control screen state</string>
+    <string name="stop_service">Stop Service</string>
+    <string name="shell_logs">Shell Logs</string>
 </resources>

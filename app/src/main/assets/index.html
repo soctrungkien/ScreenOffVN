@@ -54,6 +54,20 @@
                 qrCode.append(qrContainer);
             }
 
+            const stopBtn = document.querySelector('#stop-btn');
+            if (stopBtn) {
+                stopBtn.addEventListener('click', async () => {
+                    if (confirm('Bạn có chắc chắn muốn dừng dịch vụ?')) {
+                        try {
+                            await fetch('/stop');
+                            alert('Đã gửi yêu cầu dừng dịch vụ.');
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    }
+                });
+            }
+
             const toggle = document.querySelector('#screen-toggle');
             if (toggle) {
                 toggle.addEventListener('change', async (e) => {
@@ -93,6 +107,8 @@
             --md-sys-color-surface-container: #202427;
             --md-sys-color-on-surface-variant: #c4c7c5;
             --md-sys-color-outline: #8e918f;
+            --md-sys-color-error: #ffb4ab;
+            --md-sys-color-on-error: #690005;
 
             font-family: 'Roboto Flex', sans-serif;
             color-scheme: dark;
@@ -228,6 +244,9 @@
                 <span class="toggle-label">Chế độ tắt màn hình</span>
                 <md-switch id="screen-toggle" {{checked}}></md-switch>
             </div>
+            <md-filled-button id="stop-btn" style="--md-filled-button-container-color: var(--md-sys-color-error); --md-filled-button-label-text-color: var(--md-sys-color-on-error); margin-top: 16px; width: 100%;">
+                Dừng dịch vụ
+            </md-filled-button>
         </div>
     </div>
 </div>

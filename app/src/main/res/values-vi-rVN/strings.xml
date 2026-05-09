@@ -38,4 +38,6 @@
     <string name="tile">Điều khiển tổng thể</string>
     <string name="service_closed">Đã đóng dịch vụ</string>
     <string name="net_ctl">Điều khiển qua mạng LAN</string>
+    <string name="stop_service">Dừng dịch vụ</string>
+    <string name="shell_logs">Nhật ký hệ thống</string>
 </resources>
