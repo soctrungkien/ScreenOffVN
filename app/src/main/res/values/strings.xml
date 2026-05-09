@@ -11,10 +11,10 @@
     <string name="toosmall">Too small!</string>
     <string name="all_ok">Service activated</string>
     <string name="not_ok">Tap to activate Screen Off Run</string>
-    <string name="active_steps">Screen Off Run requires ADB or Root permission to activate.\nADB method: Enable USB Debugging on your phone, connect to a computer, and run the following command in a terminal/cmd window:\nadb shell %s\n\nFor devices with Android 6.0 and above, you can also use Shizuku to activate (Shizuku activation is essentially the same as ADB permission activation).\n</string>
+    <string name="active_steps">Screen Off Run requires ADB or Root permission to activate.\nadb shell %1$s\n\nFor devices with Android 6.0 and above, you can also use Shizuku to activate (Shizuku activation is essentially the same as ADB permission activation).\n</string>
     <string name="need_active">Screen Off Run service activation required</string>
     <string name="copy_cmd">Copy Command</string>
-    <string name="cmd_copy_finish">ADB command copied to clipboard: adb shell %s</string>
+    <string name="cmd_copy_finish">ADB command copied to clipboard: adb shell %1$s</string>
     <string name="by_root">Activate via Root</string>
     <string name="active_failed">Activation failed</string>
     <string name="by_shizuku">Activate via Shizuku</string>

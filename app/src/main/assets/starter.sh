@@ -1,9 +1,8 @@
 #!/system/bin/sh
 
-# Cấp quyền ghi cài đặt hệ thống (Bỏ qua lỗi nếu không hỗ trợ pm grant runtime)
+# Grant permission (ignore failures)
 pm grant com.tile.screenoff android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
 
-# Sử dụng tham số truyền vào hoặc mặc định
 base_path=$1
 if [ -z "$base_path" ]; then
     base_path="/sdcard/Android/data/com.tile.screenoff/files"
@@ -11,16 +10,12 @@ fi
 
 file_name="ScreenController.dex"
 origin_path="$base_path/$file_name"
+target_path="/data/local/tmp/ScreenController.dex"
 
-cache_dir="/data/local/tmp"
-target_path="$cache_dir/ScreenController.dex"
-
-# Kiểm tra file nguồn và sao chép vào tmp để chạy
 if [ -f "$origin_path" ]; then
     cp -f "$origin_path" "$target_path"
     chmod 666 "$target_path"
     export CLASSPATH="$target_path"
-    # Chạy tiến trình ngầm
     nohup app_process /system/bin com.tile.screenoff.ScreenController > /dev/null 2>&1 &
     echo "Started ScreenController from $origin_path"
 else
