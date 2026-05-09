@@ -84,13 +84,132 @@
             line-height: 1.6;
         }
     </style>
+    <style>
+        :root {
+            /* Pixel UI Dark Mode Palette */
+            --md-sys-color-primary: #a8c7fa; /* Pixel Blue Accent */
+            --md-sys-color-on-primary: #062e6f;
+            --md-sys-color-primary-container: #0842a0;
+            --md-sys-color-on-primary-container: #d3e3fd;
+            --md-sys-color-surface: #1a1c1e; /* Deep Pixel Gray */
+            --md-sys-color-on-surface: #e2e2e6;
+            --md-sys-color-surface-container: #202427;
+            --md-sys-color-on-surface-variant: #c4c7c5;
+            --md-sys-color-outline: #8e918f;
+            --md-sys-color-error: #ffb4ab;
+            --md-sys-color-on-error: #690005;
+
+            font-family: 'Roboto Flex', sans-serif;
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            min-height: 100vh;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 420px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background-color: var(--md-sys-color-surface-container);
+            border-radius: 28px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        #qrcode {
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        #qrcode > * {
+            width: 180px;
+            height: 180px;
+        }
+
+        .info-list {
+            width: 100%;
+            text-align: left;
+            margin: 8px 0;
+            --md-list-container-color: transparent;
+        }
+
+        md-list-item {
+            --md-list-item-label-text-color: var(--md-sys-color-on-surface);
+            --md-list-item-supporting-text-color: var(--md-sys-color-on-surface-variant);
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 20px 24px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            box-sizing: border-box;
+        }
+
+        .toggle-label {
+            font-size: 17px;
+            font-weight: 500;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        p.subtitle {
+            color: var(--md-sys-color-on-surface-variant);
+            line-height: 1.5;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        md-switch {
+            --md-switch-selected-handle-color: var(--md-sys-color-primary);
+            --md-switch-selected-track-color: var(--md-sys-color-primary-container);
+        }
+
+        #state-text {
+            color: var(--md-sys-color-primary);
+            font-weight: 700;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h1>404</h1>
         <h2>Trang không tồn tại</h2>
         <p>Có vẻ như bạn đã đi lạc đường hoặc liên kết đã hết hạn.</p>
-        <md-filled-button id="stop-btn" style="margin-top: 16px; width: 100%;" onclick="window.location.href='/'">Quay lại trang chủ</md-filled-button>
+        <md-filled-button id="btn" style="margin-top: 16px; width: 100%;" onclick="window.location.href='/'">Quay lại trang chủ</md-filled-button>
     </div>
 </body>
 </html>
