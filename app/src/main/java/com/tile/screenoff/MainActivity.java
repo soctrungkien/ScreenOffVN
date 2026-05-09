@@ -142,6 +142,26 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
             Log.e("ScreenOffCrash", "Uncaught exception", e);
+            
+            // Format exception trace
+            java.io.StringWriter sw = new java.io.StringWriter();
+            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+            e.printStackTrace(pw);
+            String trace = sw.toString();
+            
+            // Write to log file synchronously before crash
+            try (java.io.FileWriter fw = new java.io.FileWriter(new java.io.File(getFilesDir(), "shell_logs.txt"), true);
+                 java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+                bw.write("\n" + "=".repeat(20) + " CRASH LOG DETECTED " + "=".repeat(20) + "\n");
+                bw.write("Time: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new java.util.Date()) + "\n");
+                bw.write("Device: " + Build.BRAND + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ", API " + Build.VERSION.SDK_INT + ")\n");
+                bw.write("Message: " + e.getMessage() + "\n\n");
+                bw.write("Stack Trace:\n");
+                bw.write(trace);
+                bw.write("\n" + "=".repeat(60) + "\n");
+                bw.flush();
+            } catch (Exception ignored) {}
+
             new Thread(() -> {
                 Looper.prepare();
                 Toast.makeText(getApplicationContext(), "Crash: " + e.getMessage(), Toast.LENGTH_LONG).show();
