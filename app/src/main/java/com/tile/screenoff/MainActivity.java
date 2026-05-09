@@ -127,6 +127,17 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
+            Log.e("ScreenOffCrash", "Uncaught exception", e);
+            new Thread(() -> {
+                Looper.prepare();
+                Toast.makeText(getApplicationContext(), "Crash: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Looper.loop();
+            }).start();
+            try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+            android.os.Process.killProcess(android.os.Process.myPid());
+            System.exit(10);
+        });
         super.onCreate(savedInstanceState);
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
@@ -145,8 +156,8 @@ public class MainActivity extends AppCompatActivity {
             }).setCancelable(false).setPositiveButton(R.string.disagree, (d, i) -> finish()).show();
         }
 
-        setButtonsOnclick(isNight, sp);
         activityRef = new WeakReference<>(this);
+        setButtonsOnclick(isNight, sp);
         TextView logTv = findViewById(R.id.log_text);
         if (logTv != null) {
             synchronized (logBuffer) {
@@ -166,11 +177,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateSwitchState() {
+        if (this.isFinishing()) return;
         try {
             if (iScreenOff != null) {
                 int state = iScreenOff.getNowScreenState();
                 MaterialSwitch aSwitch = findViewById(R.id.screenoff_switch);
-                aSwitch.setChecked(state == 1);
+                if (aSwitch != null) aSwitch.setChecked(state == 1);
             }
         } catch (RemoteException e) {
             isServiceOK = false; iScreenOff = null;
