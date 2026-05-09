@@ -140,6 +140,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme);
         Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
             Log.e("ScreenOffCrash", "Uncaught exception", e);
             
