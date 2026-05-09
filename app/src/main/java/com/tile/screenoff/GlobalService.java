@@ -319,8 +319,15 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         } else {
             // Try serving from assets
             String assetPath = cleanTarget.startsWith("/") ? cleanTarget.substring(1) : cleanTarget;
-            // Handle directory navigation for libraries in assets
+            if (assetPath.isEmpty()) assetPath = "index.html";
+
             byte[] assetData = loadBinary(assetPath);
+            if (assetData == null && !assetPath.contains(".")) {
+                // Try as directory (e.g. /lit/ -> /lit/index.js)
+                String altPath = assetPath + (assetPath.endsWith("/") ? "" : "/") + "index.js";
+                assetData = loadBinary(altPath);
+                if (assetData != null) assetPath = altPath;
+            }
 
             if (assetData != null) {
                 sendBinaryResponse(socket, assetData, getMimeType(assetPath));
