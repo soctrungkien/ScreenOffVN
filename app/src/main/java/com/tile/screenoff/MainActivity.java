@@ -1,8 +1,9 @@
 package com.tile.screenoff;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -36,6 +37,7 @@ import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.EditText;
+import com.google.android.material.button.MaterialButton;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -61,7 +63,7 @@ import java.util.zip.ZipFile;
 import android.bluetooth.BluetoothAdapter;
 import rikka.shizuku.Shizuku;
 
-public class MainActivity extends Activity {
+public class MainActivity extends AppCompatActivity {
     private boolean isExpand = false, isServiceOK = false, isPermissionResultListenerRegistered = false;
     private final Handler checkHandler = new Handler(Looper.getMainLooper());
     private final Runnable checkRunnable = new Runnable() {
@@ -133,7 +135,7 @@ public class MainActivity extends Activity {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.setNavigationBarContrastEnforced(false);
         boolean isNight = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_YES) == Configuration.UI_MODE_NIGHT_YES;
-        window.setNavigationBarColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) ? Color.TRANSPARENT : getColor(isNight ? R.color.bgBlack : R.color.bgWhite) : (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) ? Color.TRANSPARENT : (isNight ? 0xff303034 : 0xffe4e2e6));
+        window.setNavigationBarColor((getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) ? Color.TRANSPARENT : ContextCompat.getColor(this, isNight ? R.color.bgBlack : R.color.bgWhite));
         window.setStatusBarColor(Color.TRANSPARENT);
 
         SharedPreferences sp = getSharedPreferences("s", 0);
@@ -291,7 +293,7 @@ public class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {}
         });
 
-        Button stopBtn = findViewById(R.id.stop_button);
+        MaterialButton stopBtn = findViewById(R.id.stop_button);
         if (stopBtn != null) {
             stopBtn.setOnClickListener(v -> {
                 try {
@@ -302,9 +304,9 @@ public class MainActivity extends Activity {
                 iScreenOff = null;
                 updateSwitchState();
                 stopBtn.setVisibility(View.GONE);
-                Button activeBtn = findViewById(R.id.activate_button);
+                MaterialButton activeBtn = findViewById(R.id.activate_button);
                 activeBtn.setText(R.string.not_ok);
-                activeBtn.setTextColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(R.color.wrong) : 0xFFFF3D00);
+                activeBtn.setTextColor(ContextCompat.getColor(this, R.color.wrong));
                 activeBtn.setOnClickListener(v1 -> showActivate());
                 findViewById(R.id.screenoff_switch).setEnabled(false);
             });
@@ -314,7 +316,7 @@ public class MainActivity extends Activity {
         findViewById(R.id.activate_button).setOnClickListener(v -> showActivate());
         float density = getResources().getDisplayMetrics().density;
         ShapeDrawable oval = new ShapeDrawable(new RoundRectShape(new float[]{30*density, 30*density, 30*density, 30*density, 0, 0, 0, 0}, null, null));
-        oval.getPaint().setColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(isNight ? R.color.bgBlack : R.color.bgWhite) : (isNight ? 0xff303034 : 0xffe4e2e6));
+        oval.getPaint().setColor(ContextCompat.getColor(this, isNight ? R.color.bgBlack : R.color.bgWhite));
         findViewById(R.id.ll).setBackground(oval);
         MaterialSwitch aSwitch = findViewById(R.id.screenoff_switch);
         aSwitch.setOnCheckedChangeListener((cb, b) -> { if (!isServiceOK || iScreenOff == null) return; try { iScreenOff.setPowerMode(!b); } catch (Exception ignored) {} });
@@ -405,10 +407,10 @@ public class MainActivity extends Activity {
     private void tryAutoActivate() { if (isServiceOK) return; trySilentActivate(this); }
 
     public void enableScreenOffFunctions() {
-        Button btn = findViewById(R.id.activate_button); isServiceOK = true;
-        btn.setText(getString(R.string.all_ok)); btn.setTextColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? getColor(R.color.right) : 0xFF00FF00);
+        MaterialButton btn = findViewById(R.id.activate_button); isServiceOK = true;
+        btn.setText(getString(R.string.all_ok)); btn.setTextColor(ContextCompat.getColor(this, R.color.right));
         btn.setOnClickListener(null);
-        Button stopBtn = findViewById(R.id.stop_button);
+        MaterialButton stopBtn = findViewById(R.id.stop_button);
         if (stopBtn != null) stopBtn.setVisibility(View.VISIBLE);
         btn.setOnLongClickListener(v -> {
             try { sendBroadcast(new Intent("intent.screenoff.exit")); if (iScreenOff != null) iScreenOff.closeAndExit(); } catch (Exception ignored) {}
@@ -417,7 +419,7 @@ public class MainActivity extends Activity {
         findViewById(R.id.screenoff_switch).setEnabled(true); updateSwitchState();
     }
 
-    @Override public void onBackPressed() { finish(); }
+    @Override public void onBackPressed() { super.onBackPressed(); }
     @Override public boolean onKeyDown(int k, KeyEvent ev) {
         if (isExpand) { Toast.makeText(this, String.format(Locale.getDefault(), getString(R.string.key_pressed), KeyEvent.keyCodeToString(k).replace("KEYCODE_", ""), k), Toast.LENGTH_SHORT).show(); return true; }
         if (!isServiceOK) return true;
