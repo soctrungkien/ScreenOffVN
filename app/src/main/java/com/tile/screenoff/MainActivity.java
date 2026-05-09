@@ -139,9 +139,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Apply dynamic colors and theme first
-        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
         setTheme(R.style.AppTheme);
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
 
         // Crash handler to log everything
         Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {

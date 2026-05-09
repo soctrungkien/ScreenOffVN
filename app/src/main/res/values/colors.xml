@@ -7,5 +7,5 @@
     <color name="fg">#ff454749</color>
     <color name="transparent">#00000000</color>
     <color name="wrong">#FF3D00</color>
-    <color name="right">#ffffffff</color>
+    <color name="right">#000</color>
 </resources>
