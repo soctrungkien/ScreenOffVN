@@ -39,6 +39,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.color.DynamicColors;
+import com.google.android.material.color.MaterialColors;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -182,6 +183,14 @@ public class MainActivity extends AppCompatActivity {
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         window.getAttributes().dimAmount = 0.5f;
         setContentView(R.layout.main);
+
+        // Adjust window size for floating effect
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
+        lp.copyFrom(window.getAttributes());
+        lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.9);
+        lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
+        lp.gravity = android.view.Gravity.CENTER;
+        window.setAttributes(lp);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.setNavigationBarContrastEnforced(false);
         boolean isNight = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_YES) == Configuration.UI_MODE_NIGHT_YES;
@@ -397,10 +406,15 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.title_text).setOnClickListener(v -> help());
         findViewById(R.id.activate_button).setOnClickListener(v -> showActivate());
-        float density = getResources().getDisplayMetrics().density;
-        ShapeDrawable oval = new ShapeDrawable(new RoundRectShape(new float[]{30*density, 30*density, 30*density, 30*density, 0, 0, 0, 0}, null, null));
-        oval.getPaint().setColor(ContextCompat.getColor(this, isNight ? R.color.bgBlack : R.color.bgWhite));
-        findViewById(R.id.ll).setBackground(oval);
+        
+        // Use Material 3 surface color for the card background
+        int surfaceAttr = com.google.android.material.R.attr.colorSurfaceContainerHigh;
+        int surfaceColor = MaterialColors.getColor(this, surfaceAttr, isNight ? 0xff303034 : 0xffe4e2e6);
+        float d = getResources().getDisplayMetrics().density;
+        ShapeDrawable backgroundDrawable = new ShapeDrawable(new RoundRectShape(new float[]{24*d, 24*d, 24*d, 24*d, 24*d, 24*d, 24*d, 24*d}, null, null));
+        backgroundDrawable.getPaint().setColor(surfaceColor);
+        findViewById(R.id.ll).setBackground(backgroundDrawable);
+
         MaterialSwitch aSwitch = findViewById(R.id.screenoff_switch);
         aSwitch.setOnCheckedChangeListener((cb, b) -> { if (!isServiceOK || iScreenOff == null) return; try { iScreenOff.setPowerMode(!b); } catch (Exception ignored) {} });
         isExpand = true;
