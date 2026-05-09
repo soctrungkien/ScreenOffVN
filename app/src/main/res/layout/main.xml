@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:background="#00000000"
     android:gravity="center"
-    android:onClick="finish"
     android:orientation="horizontal">
 
     <View
@@ -35,7 +34,7 @@
             android:padding="20dp"
             android:text="@string/shortcutoff"
             android:textColor="?attr/colorOnSurface"
-            android:textSize="22sp"
+            android:textSize="21sp"
             android:textStyle="bold" />
 
         <com.google.android.material.button.MaterialButton

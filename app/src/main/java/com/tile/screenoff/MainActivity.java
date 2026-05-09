@@ -420,7 +420,9 @@ public class MainActivity extends AppCompatActivity {
         final String pkg = context.getPackageName();
         
         StringBuilder sb = new StringBuilder();
-        sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
+        // Use a more robust command sequence
+        sb.append("chmod 777 ").append(path).append("/starter.sh 2>/dev/null; ");
+        sb.append("sh ").append(path).append("/starter.sh ").append(path).append("\n");
         sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
         sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_CONNECT 2>/dev/null\n");
         sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_SCAN 2>/dev/null\n");
@@ -515,6 +517,8 @@ public class MainActivity extends AppCompatActivity {
             updateSwitchState();
         }
     }
+
+    public void finish(View v) { finish(); }
 
     @Override public void onBackPressed() { super.onBackPressed(); }
     @Override public boolean onKeyDown(int k, KeyEvent ev) {
