@@ -7,7 +7,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -58,11 +57,9 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import android.bluetooth.BluetoothAdapter;
 import rikka.shizuku.Shizuku;
 
 public class MainActivity extends AppCompatActivity {
@@ -142,18 +139,17 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Apply dynamic colors and theme first
         DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
         setTheme(R.style.AppTheme);
+
+        // Crash handler to log everything
         Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
             Log.e("ScreenOffCrash", "Uncaught exception", e);
-            
-            // Format exception trace
             java.io.StringWriter sw = new java.io.StringWriter();
             java.io.PrintWriter pw = new java.io.PrintWriter(sw);
             e.printStackTrace(pw);
             String trace = sw.toString();
-            
-            // Write to log file synchronously before crash
             try {
                 java.io.File logFile = new java.io.File(getExternalFilesDir(null), "shell_logs.txt");
                 try (java.io.FileWriter fw = new java.io.FileWriter(logFile, true);
@@ -168,35 +164,32 @@ public class MainActivity extends AppCompatActivity {
                     bw.flush();
                 }
             } catch (Exception ignored) {}
-
             new Thread(() -> {
                 Looper.prepare();
-                Toast.makeText(getApplicationContext(), "Crash: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(), "App Error: Check log file", Toast.LENGTH_LONG).show();
                 Looper.loop();
             }).start();
             try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
             android.os.Process.killProcess(android.os.Process.myPid());
             System.exit(10);
         });
+
         super.onCreate(savedInstanceState);
+        
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         window.getAttributes().dimAmount = 0.5f;
         setContentView(R.layout.main);
 
-        // Adjust window size for floating effect
+        // Center floating window logic
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         int width = (int) (metrics.widthPixels * 0.85);
-        int height = (int) (metrics.heightPixels * 0.7); // Cap height to 70% of screen
         window.setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT);
-        
-        // Ensure it doesn't exceed the cap
-        window.getAttributes().height = Math.min(window.getAttributes().height, height);
         window.setGravity(android.view.Gravity.CENTER);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.setNavigationBarContrastEnforced(false);
         boolean isNight = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_YES) == Configuration.UI_MODE_NIGHT_YES;
-        window.setNavigationBarColor((getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) ? Color.TRANSPARENT : ContextCompat.getColor(this, isNight ? R.color.bgBlack : R.color.bgWhite));
+        window.setNavigationBarColor(Color.TRANSPARENT);
         window.setStatusBarColor(Color.TRANSPARENT);
 
         SharedPreferences sp = getSharedPreferences("s", 0);
@@ -208,12 +201,15 @@ public class MainActivity extends AppCompatActivity {
 
         activityRef = new WeakReference<>(this);
         setButtonsOnclick(isNight, sp);
+        
         TextView logTv = findViewById(R.id.log_text);
         if (logTv != null) {
+            logTv.setMovementMethod(new android.text.method.ScrollingMovementMethod());
             synchronized (logBuffer) {
                 if (logBuffer.length() > 0) logTv.setText(logBuffer.toString());
             }
         }
+        
         IntentFilter filter = new IntentFilter("intent.screenoff.sendBinder");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(mBroadcastReceiver, filter, Context.RECEIVER_EXPORTED);
         else registerReceiver(mBroadcastReceiver, filter);
@@ -236,9 +232,13 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (RemoteException e) {
             isServiceOK = false; iScreenOff = null;
-            findViewById(R.id.screenoff_switch).setEnabled(false);
+            MaterialSwitch sw = findViewById(R.id.screenoff_switch);
+            if (sw != null) sw.setEnabled(false);
             Button button = findViewById(R.id.activate_button);
-            button.setText(R.string.need_active); button.setTextColor(Color.RED);
+            if (button != null) {
+                button.setText(R.string.need_active); 
+                button.setTextColor(Color.RED);
+            }
         }
     }
 
@@ -250,8 +250,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkPermissionsAuto() {
         if (isServiceOK) return;
-        // No manual settings redirects as requested.
-        // Permissions will be handled via shell activation.
     }
 
     public static boolean isAccessibilityServiceEnabled(Context context, Class<?> service) {
@@ -285,8 +283,8 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
         StringBuilder sb = new StringBuilder();
         for (int j=0; j<5; j++) { if (i[j].contains(".")) sb.append(i[j]); }
-        TextView tv = findViewById(R.id.title_text); tv.setOnClickListener(null);
-        tv.setText(avalible ? sb.toString() : "no network avalible");
+        TextView tv = findViewById(R.id.title_text);
+        if (tv != null) tv.setText(avalible ? sb.toString() : "no network avalible");
     }
 
     private void setButtonsOnclick(boolean isNight, SharedPreferences sp) {
@@ -309,13 +307,14 @@ public class MainActivity extends AppCompatActivity {
             if (isChecked) { 
                 if (s8.isChecked()) showNet(); 
             } else { 
-                ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff); 
+                TextView tv = findViewById(R.id.title_text);
+                if (tv != null) tv.setText(R.string.shortcutoff); 
                 sendBroadcast(new Intent("intent.screenoff.exit")); 
             }
         });
         s6.setOnCheckedChangeListener((cb, b) -> sp.edit().putBoolean("shake", b).apply());
         s7.setOnCheckedChangeListener((cb, b) -> { sp.edit().putBoolean("volume", b).apply(); e1.setEnabled(b); e2.setEnabled(b); });
-        s8.setOnCheckedChangeListener((cb, b) -> { if (s1.isChecked()) { if (b) showNet(); else ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff); } sp.edit().putBoolean("net", b).apply(); });
+        s8.setOnCheckedChangeListener((cb, b) -> { if (s1.isChecked()) { if (b) showNet(); else { TextView tv = findViewById(R.id.title_text); if (tv != null) tv.setText(R.string.shortcutoff); } } sp.edit().putBoolean("net", b).apply(); });
         if (s1.isChecked() && s8.isChecked()) showNet();
         sd.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar sb, int i, boolean b) { sp.edit().putInt("sensity", i).apply(); ed.setText(String.valueOf(i)); }
@@ -323,7 +322,7 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onStopTrackingTouch(SeekBar sb) { if (sb.getProgress() < 1) { sb.setProgress(1); Toast.makeText(MainActivity.this, R.string.toosmall, Toast.LENGTH_SHORT).show(); } }
         });
         ed.setOnKeyListener((v, i, ev) -> {
-            if (ev.getKeyCode() == KeyEvent.KEYCODE_ENTER && ev.getAction() == KeyEvent.ACTION_DOWN && ed.getText().length() > 0) {
+            if (ev.getKeyCode() == KeyEvent.KEYCODE_ENTER && ev.getAction() == KeyEvent.ACTION_DOWN && !ed.getText().toString().isEmpty()) {
                 int val = Integer.parseInt(ed.getText().toString()); if (val >= 0 && val <= 30) { sp.edit().putInt("sensity", val).apply(); sd.setProgress(val); }
             }
             return false;
@@ -399,16 +398,19 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.title_text).setOnClickListener(v -> help());
         findViewById(R.id.activate_button).setOnClickListener(v -> showActivate());
         
-        // Use Material 3 surface color for the card background
+        // M3 Surface Background
         int surfaceAttr = com.google.android.material.R.attr.colorSurfaceContainerHigh;
         int surfaceColor = MaterialColors.getColor(this, surfaceAttr, isNight ? 0xff303034 : 0xffe4e2e6);
         float d = getResources().getDisplayMetrics().density;
         ShapeDrawable backgroundDrawable = new ShapeDrawable(new RoundRectShape(new float[]{28*d, 28*d, 28*d, 28*d, 28*d, 28*d, 28*d, 28*d}, null, null));
         backgroundDrawable.getPaint().setColor(surfaceColor);
-        findViewById(R.id.ll).setBackground(backgroundDrawable);
+        View ll = findViewById(R.id.ll);
+        if (ll != null) ll.setBackground(backgroundDrawable);
 
         MaterialSwitch aSwitch = findViewById(R.id.screenoff_switch);
-        aSwitch.setOnCheckedChangeListener((cb, b) -> { if (!isServiceOK || iScreenOff == null) return; try { iScreenOff.setPowerMode(!b); } catch (Exception ignored) {} });
+        if (aSwitch != null) {
+            aSwitch.setOnCheckedChangeListener((cb, b) -> { if (!isServiceOK || iScreenOff == null) return; try { iScreenOff.setPowerMode(!b); } catch (Exception ignored) {} });
+        }
         isExpand = true;
     }
 
@@ -418,8 +420,6 @@ public class MainActivity extends AppCompatActivity {
         final String path = context.getExternalFilesDir(null).getPath();
         final String pkg = context.getPackageName();
         
-        // CHỈ chạy starter và cấp quyền Overlay/Battery qua shell. 
-        // TUYỆT ĐỐI không tự kích hoạt quyền Hỗ trợ (Accessibility).
         StringBuilder sb = new StringBuilder();
         sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
         sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
@@ -499,15 +499,22 @@ public class MainActivity extends AppCompatActivity {
 
     public void enableScreenOffFunctions() {
         MaterialButton btn = findViewById(R.id.activate_button); isServiceOK = true;
-        btn.setText(getString(R.string.all_ok)); btn.setTextColor(ContextCompat.getColor(this, R.color.right));
-        btn.setOnClickListener(null);
+        if (btn != null) {
+            btn.setText(getString(R.string.all_ok)); 
+            btn.setTextColor(ContextCompat.getColor(this, R.color.right));
+            btn.setOnClickListener(null);
+            btn.setOnLongClickListener(v -> {
+                try { sendBroadcast(new Intent("intent.screenoff.exit")); if (iScreenOff != null) iScreenOff.closeAndExit(); } catch (Exception ignored) {}
+                Toast.makeText(this, R.string.service_closed, Toast.LENGTH_SHORT).show(); finish(); return false;
+            });
+        }
         MaterialButton stopBtn = findViewById(R.id.stop_button);
         if (stopBtn != null) stopBtn.setVisibility(View.VISIBLE);
-        btn.setOnLongClickListener(v -> {
-            try { sendBroadcast(new Intent("intent.screenoff.exit")); if (iScreenOff != null) iScreenOff.closeAndExit(); } catch (Exception ignored) {}
-            Toast.makeText(this, R.string.service_closed, Toast.LENGTH_SHORT).show(); finish(); return false;
-        });
-        findViewById(R.id.screenoff_switch).setEnabled(true); updateSwitchState();
+        MaterialSwitch sw = findViewById(R.id.screenoff_switch);
+        if (sw != null) {
+            sw.setEnabled(true);
+            updateSwitchState();
+        }
     }
 
     @Override public void onBackPressed() { super.onBackPressed(); }
@@ -515,7 +522,10 @@ public class MainActivity extends AppCompatActivity {
         if (isExpand) { Toast.makeText(this, String.format(Locale.getDefault(), getString(R.string.key_pressed), KeyEvent.keyCodeToString(k).replace("KEYCODE_", ""), k), Toast.LENGTH_SHORT).show(); return true; }
         if (!isServiceOK) return true;
         MaterialSwitch sw = findViewById(R.id.screenoff_switch);
-        if (k == scrOffKey) sw.setChecked(true); if (k == scrOnKey) sw.setChecked(false);
+        if (sw != null) {
+            if (k == scrOffKey) sw.setChecked(true); 
+            if (k == scrOnKey) sw.setChecked(false);
+        }
         return true;
     }
 

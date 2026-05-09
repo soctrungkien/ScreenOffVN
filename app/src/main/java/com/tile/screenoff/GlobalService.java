@@ -306,6 +306,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     private void handleRequest(HttpRequest request, Socket socket) {
         if (server == null || !netControl) return;
         String target = request.getRequestTarget();
+        Log.d("ScreenOffWeb", "Request: " + target);
         String cleanTarget = target.contains("?") ? target.substring(0, target.indexOf("?")) : target;
 
         if (cleanTarget.equals("/") || cleanTarget.equals("/index.html")) {
@@ -324,7 +325,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             byte[] assetData = loadBinary(assetPath);
             if (assetData == null && !assetPath.contains(".")) {
                 // Try as directory with common index files
-                String[] indexFiles = {"index.js", "tslib.js", "lit-element.js", "lit-html.js"};
+                String[] indexFiles = {"index.js", "tslib.js", "lit-element.js", "lit-html.js", "tslib.es6.mjs"};
                 for (String idx : indexFiles) {
                     String altPath = assetPath + (assetPath.endsWith("/") ? "" : "/") + idx;
                     assetData = loadBinary(altPath);
@@ -336,6 +337,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             }
 
             if (assetData != null) {
+                Log.d("ScreenOffWeb", "Serving: " + assetPath);
                 sendBinaryResponse(socket, assetData, getMimeType(assetPath));
                 return;
             }
@@ -365,8 +367,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         if (lowerPath.endsWith(".png")) return "image/png";
         if (lowerPath.endsWith(".ico")) return "image/x-icon";
         if (lowerPath.endsWith(".ttf") || lowerPath.endsWith(".woff") || lowerPath.endsWith(".woff2")) return "font/ttf";
-        if (lowerPath.endsWith(".json")) return "application/json; charset=UTF-8";
-        if (lowerPath.endsWith(".map")) return "application/json; charset=UTF-8";
+        if (lowerPath.endsWith(".json") || lowerPath.endsWith(".map")) return "application/json; charset=UTF-8";
         if (lowerPath.endsWith(".svg")) return "image/svg+xml; charset=UTF-8";
         return "application/octet-stream";
     }

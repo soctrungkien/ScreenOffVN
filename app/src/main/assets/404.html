@@ -7,8 +7,23 @@
     <title>404 - Không tìm thấy</title>
 
     <!-- Material Web Components -->
-    <script type="module">
-        import './@material/web/all.js';
+    <script type="importmap">
+        {
+          "imports": {
+            "tslib": "./tslib/tslib.es6.mjs",
+            "lit": "./lit/index.js",
+            "lit/": "./lit/",
+            "lit-html": "./lit-html/lit-html.js",
+            "lit-html/": "./lit-html/",
+            "lit-element": "./lit-element/lit-element.js",
+            "lit-element/": "./lit-element/",
+            "lit-element/lit-element.js": "./lit-element/lit-element.js",
+            "@lit/reactive-element": "./@lit/reactive-element/reactive-element.js",
+            "@lit/reactive-element/": "./@lit/reactive-element/",
+            "@lit/reactive-element/reactive-element.js": "./@lit/reactive-element/reactive-element.js",
+            "@material/web/": "./@material/web/"
+          }
+        }
     </script>
 
     <style>
@@ -68,13 +83,6 @@
             margin-bottom: 24px;
             line-height: 1.6;
         }
-
-        md-filled-button {
-            width: fit-content;
-            align-self: center;
-            --md-filled-button-container-color: var(--md-sys-color-primary);
-            --md-filled-button-label-text-color: #062e6f;
-        }
     </style>
 </head>
 <body>
@@ -82,7 +90,7 @@
         <h1>404</h1>
         <h2>Trang không tồn tại</h2>
         <p>Có vẻ như bạn đã đi lạc đường hoặc liên kết đã hết hạn.</p>
-        <md-filled-button onclick="window.location.href='/'">Quay lại trang chủ</md-filled-button>
+        <md-filled-button id="stop-btn" style="margin-top: 16px; width: 100%;" onclick="window.location.href='/'">Quay lại trang chủ</md-filled-button>
     </div>
 </body>
 </html>
