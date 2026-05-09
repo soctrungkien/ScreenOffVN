@@ -306,20 +306,53 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     private void handleRequest(HttpRequest request, Socket socket) {
         if (server == null || !netControl) return;
         String target = request.getRequestTarget();
-        if (target.equals("/") || target.equals("/index.html")) sendHtmlResponse(socket, buildIndexHtml(), "200 OK");
-        else if (target.equals("/status")) sendJsonResponse(socket, buildStatusJson());
-        else if (target.equals("/favicon.ico") || target.equals("/favicon.png")) {
+        String cleanTarget = target.contains("?") ? target.substring(0, target.indexOf("?")) : target;
+
+        if (cleanTarget.equals("/") || cleanTarget.equals("/index.html")) {
+            sendHtmlResponse(socket, buildIndexHtml(), "200 OK");
+        } else if (cleanTarget.equals("/status")) {
+            sendJsonResponse(socket, buildStatusJson());
+        } else if (cleanTarget.equals("/favicon.ico") || cleanTarget.equals("/favicon.png")) {
             byte[] icon = getRoundedAppIcon();
             if (icon != null) sendPngResponse(socket, icon);
             else sendHtmlResponse(socket, "", "404 Not Found");
         } else {
+            // Try serving from assets
+            String assetPath = cleanTarget.startsWith("/") ? cleanTarget.substring(1) : cleanTarget;
+            byte[] assetData = loadBinary(assetPath);
+            if (assetData != null) {
+                sendBinaryResponse(socket, assetData, getMimeType(assetPath));
+                return;
+            }
+
             try {
                 if (iScreenOff == null) { sendHtmlResponse(socket, "Service not connected", "503 Service Unavailable"); return; }
-                if (target.startsWith("/1?")) { iScreenOff.setPowerMode(false); sendHtmlResponse(socket, "", "200 OK"); }
-                else if (target.startsWith("/2?")) { iScreenOff.setPowerMode(true); sendHtmlResponse(socket, "", "200 OK"); }
+                if (cleanTarget.equals("/1")) { iScreenOff.setPowerMode(false); sendHtmlResponse(socket, "", "200 OK"); }
+                else if (cleanTarget.equals("/2")) { iScreenOff.setPowerMode(true); sendHtmlResponse(socket, "", "200 OK"); }
                 else sendHtmlResponse(socket, build404Html(), "404 Not Found");
             } catch (Exception ignored) {}
         }
+    }
+
+    private String getMimeType(String path) {
+        if (path.endsWith(".html")) return "text/html; charset=UTF-8";
+        if (path.endsWith(".js")) return "application/javascript; charset=UTF-8";
+        if (path.endsWith(".css")) return "text/css; charset=UTF-8";
+        if (path.endsWith(".png")) return "image/png";
+        if (path.endsWith(".ico")) return "image/x-icon";
+        if (path.endsWith(".ttf")) return "font/ttf";
+        if (path.endsWith(".json")) return "application/json; charset=UTF-8";
+        if (path.endsWith(".map")) return "application/json; charset=UTF-8";
+        return "application/octet-stream";
+    }
+
+    private void sendBinaryResponse(Socket socket, byte[] data, String mimeType) {
+        String header = "HTTP/1.1 200 OK\r\nContent-Type: " + mimeType + "\r\nContent-Length: " + data.length + "\r\n\r\n";
+        byte[] hBytes = header.getBytes();
+        byte[] output = new byte[hBytes.length + data.length];
+        System.arraycopy(hBytes, 0, output, 0, hBytes.length);
+        System.arraycopy(data, 0, output, hBytes.length, data.length);
+        server.sendResponse(socket, output);
     }
 
     private String buildStatusJson() {

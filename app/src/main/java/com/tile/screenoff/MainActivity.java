@@ -269,8 +269,8 @@ public class MainActivity extends Activity {
         StringBuilder sb = new StringBuilder();
         sb.append("chmod 777 ").append(path).append("/starter.sh && sh ").append(path).append("/starter.sh ").append(path).append("\n");
         sb.append("appops set ").append(pkg).append(" SYSTEM_ALERT_WINDOW allow\n");
-        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_CONNECT\n");
-        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_SCAN\n");
+        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_CONNECT 2>/dev/null\n");
+        sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_SCAN 2>/dev/null\n");
         sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
         sb.append("exit\n");
         final String cmd = sb.toString();

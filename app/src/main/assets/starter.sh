@@ -1,7 +1,7 @@
 #!/system/bin/sh
 
-# Cấp quyền ghi cài đặt hệ thống
-pm grant com.tile.screenoff android.permission.WRITE_SECURE_SETTINGS
+# Cấp quyền ghi cài đặt hệ thống (Bỏ qua lỗi nếu không hỗ trợ pm grant runtime)
+pm grant com.tile.screenoff android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
 
 # Sử dụng tham số truyền vào hoặc mặc định
 base_path=$1

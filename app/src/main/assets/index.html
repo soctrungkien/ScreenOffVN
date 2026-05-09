@@ -6,10 +6,10 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Điều khiển ScreenOff</title>
 
-    <!-- Material Web Components & QR Code -->
+    <!-- Material Web Components & QR Platform -->
     <script type="module">
         import './@material/web/all.js';
-        import QRCodeStyling from 'qr-code-styling';
+        import { QRCodeJs as QRCodeStyling } from './@qr-platform/qr-code.js/lib/index.js';
 
         const serverUrl = '{{url}}';
         const finalUrl = (serverUrl.startsWith('http') && !serverUrl.includes('{{')) ? serverUrl : window.location.href;
