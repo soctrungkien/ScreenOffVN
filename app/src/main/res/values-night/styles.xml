@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- AppCompat Compatibility Bridge -->
+        <!-- AppCompat Compatibility -->
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+        <item name="isMaterial3Theme">true</item>
 
         <!-- Floating Window Style -->
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowIsFloating">true</item>
         <item name="android:backgroundDimEnabled">true</item>
         <item name="android:windowCloseOnTouchOutside">true</item>
 

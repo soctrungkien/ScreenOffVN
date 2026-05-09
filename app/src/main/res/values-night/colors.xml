@@ -4,5 +4,5 @@
     <color name="colorAccent">#ff4bb6e8</color>
     <color name="fg">#ffc1e8ff</color>
     <color name="wrong">#80FF0000</color>
-    <color name="right">#000</color>
+    <color name="right">#FF000000</color>
 </resources>
