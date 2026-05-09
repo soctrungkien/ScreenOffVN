@@ -20,6 +20,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_weight="2"
+        android:layout_margin="16dp"
         android:gravity="center"
         android:orientation="vertical"
         android:paddingBottom="20dp">
@@ -32,7 +33,8 @@
             android:gravity="center"
             android:padding="20dp"
             android:text="@string/shortcutoff"
-            android:textSize="20sp"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <com.google.android.material.button.MaterialButton
@@ -126,6 +128,8 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:gravity="center"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="14sp"
                             android:text="@string/scroff"/>
 
                         <TextView
@@ -133,6 +137,8 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:gravity="center"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="14sp"
                             android:text="@string/scron" />
                     </LinearLayout>
 
@@ -174,6 +180,8 @@
                         <TextView
                             android:layout_gravity="center"
                             android:text="@string/ori_sensity"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="16sp"
                             android:textStyle="bold" />
 
                         <EditText

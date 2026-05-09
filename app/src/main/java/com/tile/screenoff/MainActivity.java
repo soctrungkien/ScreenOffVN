@@ -3,7 +3,7 @@ package com.tile.screenoff;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -190,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
 
         SharedPreferences sp = getSharedPreferences("s", 0);
         if (sp.getBoolean("first", true)) {
-            new AlertDialog.Builder(this).setTitle(R.string.privacy).setMessage(R.string.privacypolicy).setNegativeButton(R.string.agree, (d, i) -> {
+            new MaterialAlertDialogBuilder(this).setTitle(R.string.privacy).setMessage(R.string.privacypolicy).setNegativeButton(R.string.agree, (d, i) -> {
                 help(); sp.edit().putBoolean("first", false).apply();
             }).setCancelable(false).setPositiveButton(R.string.disagree, (d, i) -> finish()).show();
         }
@@ -389,7 +389,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 Toast.makeText(this, "Error reading log file", Toast.LENGTH_SHORT).show();
             }
-            new AlertDialog.Builder(this).setTitle("Log File: shell_logs.txt")
+            new MaterialAlertDialogBuilder(this).setTitle("Log File: shell_logs.txt")
                 .setMessage(content.toString())
                 .setPositiveButton(R.string.understand, null)
                 .show();
@@ -528,11 +528,11 @@ public class MainActivity extends AppCompatActivity {
         activityRef = null;
         super.onDestroy(); 
     }
-    public void help() { new AlertDialog.Builder(this).setTitle(R.string.help_title).setMessage(R.string.help_conntent).setNegativeButton(R.string.understand, null).show(); }
+    public void help() { new MaterialAlertDialogBuilder(this).setTitle(R.string.help_title).setMessage(R.string.help_conntent).setNegativeButton(R.string.understand, null).show(); }
     public void showActivate() {
         checkPermissionsAuto(); unzipFilesStatic(this);
         String cmd = "sh " + getExternalFilesDir(null).getPath() + "/starter.sh";
-        new AlertDialog.Builder(this).setMessage(String.format(getString(R.string.active_steps), cmd)).setTitle(R.string.need_active)
+        new MaterialAlertDialogBuilder(this).setMessage(String.format(getString(R.string.active_steps), cmd)).setTitle(R.string.need_active)
                 .setNeutralButton(R.string.copy_cmd, (di, i) -> { ((ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("c", "adb shell " + cmd)); Toast.makeText(this, String.format(getString(R.string.cmd_copy_finish), cmd), Toast.LENGTH_SHORT).show(); })
                 .setNegativeButton(R.string.by_root, (di, i) -> { try { Process p = Runtime.getRuntime().exec("su"); DataOutputStream o = new DataOutputStream(p.getOutputStream()); o.writeBytes(cmd); o.flush(); o.close(); } catch (IOException e) { Toast.makeText(this, R.string.active_failed, Toast.LENGTH_SHORT).show(); } })
                 .setPositiveButton(R.string.by_shizuku, (di, i) -> check()).show();

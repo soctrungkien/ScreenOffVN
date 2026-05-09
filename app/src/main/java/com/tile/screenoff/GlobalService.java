@@ -319,7 +319,9 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         } else {
             // Try serving from assets
             String assetPath = cleanTarget.startsWith("/") ? cleanTarget.substring(1) : cleanTarget;
+            // Handle directory navigation for libraries in assets
             byte[] assetData = loadBinary(assetPath);
+
             if (assetData != null) {
                 sendBinaryResponse(socket, assetData, getMimeType(assetPath));
                 return;
@@ -343,14 +345,16 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     }
 
     private String getMimeType(String path) {
-        if (path.endsWith(".html")) return "text/html; charset=UTF-8";
-        if (path.endsWith(".js")) return "application/javascript; charset=UTF-8";
-        if (path.endsWith(".css")) return "text/css; charset=UTF-8";
-        if (path.endsWith(".png")) return "image/png";
-        if (path.endsWith(".ico")) return "image/x-icon";
-        if (path.endsWith(".ttf")) return "font/ttf";
-        if (path.endsWith(".json")) return "application/json; charset=UTF-8";
-        if (path.endsWith(".map")) return "application/json; charset=UTF-8";
+        String lowerPath = path.toLowerCase();
+        if (lowerPath.endsWith(".html")) return "text/html; charset=UTF-8";
+        if (lowerPath.endsWith(".js") || lowerPath.endsWith(".mjs")) return "application/javascript; charset=UTF-8";
+        if (lowerPath.endsWith(".css")) return "text/css; charset=UTF-8";
+        if (lowerPath.endsWith(".png")) return "image/png";
+        if (lowerPath.endsWith(".ico")) return "image/x-icon";
+        if (lowerPath.endsWith(".ttf") || lowerPath.endsWith(".woff") || lowerPath.endsWith(".woff2")) return "font/ttf";
+        if (lowerPath.endsWith(".json")) return "application/json; charset=UTF-8";
+        if (lowerPath.endsWith(".map")) return "application/json; charset=UTF-8";
+        if (lowerPath.endsWith(".svg")) return "image/svg+xml; charset=UTF-8";
         return "application/octet-stream";
     }
 
