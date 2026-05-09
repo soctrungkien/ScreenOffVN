@@ -248,29 +248,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkPermissionsAuto() {
         if (isServiceOK) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 101);
-                return;
-            }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
-            Toast.makeText(this, "Cấp quyền 'Xuất hiện trên cùng'", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
-                catch (Exception e) { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
-                return;
-            }
-        }
-        if (!isAccessibilityServiceEnabled(this, GlobalService.class)) {
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            Toast.makeText(this, "Bật dịch vụ Hỗ trợ ScreenOff", Toast.LENGTH_SHORT).show();
-        }
+        // No manual settings redirects as requested.
+        // Permissions will be handled via shell activation.
     }
 
     public static boolean isAccessibilityServiceEnabled(Context context, Class<?> service) {
@@ -320,9 +299,17 @@ public class MainActivity extends AppCompatActivity {
         EditText ed = findViewById(R.id.ed); ed.setText(String.valueOf(sp.getInt("sensity", 10)));
         
         s1.setOnCheckedChangeListener((cb, isChecked) -> {
-            if (!isServiceOK) { cb.setChecked(false); Toast.makeText(this, R.string.active_first, Toast.LENGTH_SHORT).show(); return; }
-            if (isChecked) { if (!isAccessibilityServiceEnabled(this, GlobalService.class)) startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); if (s8.isChecked()) showNet(); }
-            else { ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff); sendBroadcast(new Intent("intent.screenoff.exit")); }
+            if (!isServiceOK) { 
+                cb.setChecked(false); 
+                Toast.makeText(this, R.string.active_first, Toast.LENGTH_SHORT).show(); 
+                return; 
+            }
+            if (isChecked) { 
+                if (s8.isChecked()) showNet(); 
+            } else { 
+                ((TextView) findViewById(R.id.title_text)).setText(R.string.shortcutoff); 
+                sendBroadcast(new Intent("intent.screenoff.exit")); 
+            }
         });
         s6.setOnCheckedChangeListener((cb, b) -> sp.edit().putBoolean("shake", b).apply());
         s7.setOnCheckedChangeListener((cb, b) -> { sp.edit().putBoolean("volume", b).apply(); e1.setEnabled(b); e2.setEnabled(b); });
@@ -434,6 +421,8 @@ public class MainActivity extends AppCompatActivity {
         sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_CONNECT 2>/dev/null\n");
         sb.append("pm grant ").append(pkg).append(" android.permission.BLUETOOTH_SCAN 2>/dev/null\n");
         sb.append("dumpsys deviceidle whitelist +").append(pkg).append("\n");
+        sb.append("settings put secure enabled_accessibility_services ").append(pkg).append("/.GlobalService\n");
+        sb.append("settings put secure accessibility_enabled 1\n");
         sb.append("exit\n");
         final String cmd = sb.toString();
 
