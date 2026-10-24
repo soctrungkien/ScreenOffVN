@@ -35,6 +35,9 @@ jobs:
 
       - name: Prepare workspace
         run: |
+          # gradlew was committed with Windows CRLF endings, which breaks the
+          # shebang (#!/usr/bin/env sh\r) on Linux runners.
+          sed -i 's/\r$//' gradlew
           chmod +x gradlew
           # local.properties is committed with a Windows SDK path, remove it so
           # Gradle uses ANDROID_HOME from the runner instead.
