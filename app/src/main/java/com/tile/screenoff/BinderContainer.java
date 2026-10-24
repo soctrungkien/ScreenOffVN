@@ -1,5 +1,7 @@
 package com.tile.screenoff;
 
+import android.content.Intent;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -9,6 +11,18 @@ public class BinderContainer implements Parcelable { // implements Parcelable ä¹
 
     public BinderContainer(IBinder binder) {
         this.binder = binder;
+    }
+
+    public static BinderContainer fromIntent(Intent intent) {
+        if (intent == null) return null;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                return intent.getParcelableExtra("binder", BinderContainer.class);
+            }
+            return intent.getParcelableExtra("binder");
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
 

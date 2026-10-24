@@ -11,6 +11,7 @@ import java.lang.reflect.Method;
 //@TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public final class DisplayControl {
 
+    private static final String TAG = "DisplayControl";
     private static final Class<?> CLASS;
 
     static {
@@ -28,7 +29,7 @@ public final class DisplayControl {
             loadMethod.setAccessible(true);
             loadMethod.invoke(Runtime.getRuntime(), displayControlClass, "android_servers");
         } catch (Throwable e) {
-            Log.e("Could not initialize DisplayControl", e.getMessage());
+            Log.e(TAG, "Could not initialize DisplayControl: " + e);
             // Do not throw an exception here, the methods will fail when they are called
         }
         CLASS = displayControlClass;
@@ -42,6 +43,7 @@ public final class DisplayControl {
     }
 
     private static Method getGetPhysicalDisplayTokenMethod() throws NoSuchMethodException {
+        if (CLASS == null) throw new NoSuchMethodException("DisplayControl is unavailable");
         if (getPhysicalDisplayTokenMethod == null) {
             getPhysicalDisplayTokenMethod = CLASS.getMethod("getPhysicalDisplayToken", long.class);
         }
@@ -53,12 +55,13 @@ public final class DisplayControl {
             Method method = getGetPhysicalDisplayTokenMethod();
             return (IBinder) method.invoke(null, physicalDisplayId);
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
-            Log.e("Could not invoke method", e.getMessage());
+            Log.e(TAG, "Could not get physical display token: " + e);
             return null;
         }
     }
 
     private static Method getGetPhysicalDisplayIdsMethod() throws NoSuchMethodException {
+        if (CLASS == null) throw new NoSuchMethodException("DisplayControl is unavailable");
         if (getPhysicalDisplayIdsMethod == null) {
             getPhysicalDisplayIdsMethod = CLASS.getMethod("getPhysicalDisplayIds");
         }
@@ -68,12 +71,10 @@ public final class DisplayControl {
     public static long[] getPhysicalDisplayIds() {
         try {
             Method method = getGetPhysicalDisplayIdsMethod();
-            //return method;
             return (long[]) method.invoke(null);
-            } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
-                    Log.e("Could not invoke method", String.valueOf(e));
-                    return null;
-                }
-
+        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+            Log.e(TAG, "Could not get physical display ids: " + e);
+            return null;
+        }
     }
 }

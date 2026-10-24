@@ -15,10 +15,11 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Scanner;
 
 public class ScreenController {
 
+
+    private static final String TAG = "ScreenController";
 
     //发送广播需要的三个东西
     static boolean isBroadcastSent = false;
@@ -30,7 +31,8 @@ public class ScreenController {
         STATE_OFF, STATE_ON, STATE_SPECIAL
     }
 
-    static ScreenState screenState = ScreenState.STATE_ON;
+    private static final Object STATE_LOCK = new Object();
+    static volatile ScreenState screenState = ScreenState.STATE_ON;
 
 
     private static final Class<?> CLASS;
@@ -38,11 +40,13 @@ public class ScreenController {
     public static final int POWER_MODE_NORMAL = 2;
 
     static {
+        Class<?> surfaceControlClass = null;
         try {
-            CLASS = Class.forName("android.view.SurfaceControl");
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError(e);
+            surfaceControlClass = Class.forName("android.view.SurfaceControl");
+        } catch (Throwable e) {
+            Log.e(TAG, "SurfaceControl is unavailable: " + e);
         }
+        CLASS = surfaceControlClass;
     }
     public static boolean useDisplayControl =
             Build.VERSION.SDK_INT >= 34;
@@ -53,56 +57,62 @@ public class ScreenController {
     static Process listenVolumeKeyProcess;
 
     private static Method getGetBuiltInDisplayMethod() throws NoSuchMethodException {
+        if (CLASS == null) throw new NoSuchMethodException("SurfaceControl is unavailable");
         if (getBuiltInDisplayMethod == null)
             getBuiltInDisplayMethod = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ? CLASS.getMethod("getBuiltInDisplay", int.class) : CLASS.getMethod("getInternalDisplayToken");
         return getBuiltInDisplayMethod;
     }
 
     public static IBinder getBuiltInDisplay() {
-        try {
-            // Change the power mode for all physical displays
-            Log.e("getBuiltInDisplay","Android 14" + useDisplayControl);
-            if (useDisplayControl) {
+        if (useDisplayControl) {
+            try {
                 long[] physicalDisplayIds = DisplayControl.getPhysicalDisplayIds();
-                if (physicalDisplayIds == null) {
-                    Log.e("getBuiltInDisplay", "Could not get physical display ids");
-                    return null;
+                if (physicalDisplayIds != null) {
+                    for (long physicalDisplayId : physicalDisplayIds) {
+                        IBinder token = DisplayControl.getPhysicalDisplayToken(physicalDisplayId);
+                        if (token != null) return token;
+                    }
                 }
-
-                for (long physicalDisplayId : physicalDisplayIds) {
-                    return DisplayControl.getPhysicalDisplayToken(
-                            physicalDisplayId);
-
-                }
-            } else {
-                Method method = getGetBuiltInDisplayMethod();
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    // call getBuiltInDisplay(0)
-                    return (IBinder) method.invoke(null, 0);
-                }
-
-                // call getInternalDisplayToken()
-                return (IBinder) method.invoke(null);
+                Log.w(TAG, "Could not get a DisplayControl token, falling back to SurfaceControl");
+            } catch (Throwable e) {
+                Log.w(TAG, "DisplayControl failed, falling back to SurfaceControl: " + e);
             }
-        } catch(InvocationTargetException | IllegalAccessException | NoSuchMethodException e){
-            Log.e("Could not invoke method", String.valueOf(e));
+        }
+
+        try {
+            Method method = getGetBuiltInDisplayMethod();
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                // call getBuiltInDisplay(0)
+                return (IBinder) method.invoke(null, 0);
+            }
+
+            // call getInternalDisplayToken()
+            return (IBinder) method.invoke(null);
+        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+            Log.e(TAG, "Could not get the built-in display: " + e);
             return null;
         }
-        return null;
     }
 
     private static Method getSetDisplayPowerModeMethod() throws NoSuchMethodException {
+        if (CLASS == null) throw new NoSuchMethodException("SurfaceControl is unavailable");
         if (setDisplayPowerModeMethod == null)
             setDisplayPowerModeMethod = CLASS.getMethod("setDisplayPowerMode", IBinder.class, int.class);
         return setDisplayPowerModeMethod;
     }
 
-    public static void setDisplayPowerMode(IBinder displayToken, int mode) {
+    public static boolean setDisplayPowerMode(IBinder displayToken, int mode) {
+        if (displayToken == null) {
+            Log.e(TAG, "Cannot set display power mode without a display token");
+            return false;
+        }
         try {
             Method method = getSetDisplayPowerModeMethod();
             method.invoke(null, displayToken, mode);
-        } catch (InvocationTargetException | IllegalAccessException |
-                 NoSuchMethodException ignored) {
+            return true;
+        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+            Log.e(TAG, "Could not set display power mode: " + e);
+            return false;
         }
     }
 
@@ -177,46 +187,51 @@ public class ScreenController {
 
     private static void stopListenVolumeKey() {
         listenVolumeKey = false;
-        if (Build.VERSION.SDK_INT >= 26) {
-            listenVolumeKeyProcess.destroyForcibly();
-        } else {
-            listenVolumeKeyProcess.destroy();
-        }
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                h1.interrupt();
+        Process process = listenVolumeKeyProcess;
+        listenVolumeKeyProcess = null;
+        if (process != null) {
+            if (Build.VERSION.SDK_INT >= 26) {
+                process.destroyForcibly();
+            } else {
+                process.destroy();
             }
-        }, 2000);
+        }
+        Thread thread = h1;
+        if (thread != null) {
+            new Handler(Looper.getMainLooper()).postDelayed(thread::interrupt, 2000);
+        }
     }
 
     private static void startListenVolumeKey() {
         if (listenVolumeKey) return;
         listenVolumeKey = true;
-        h1 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    listenVolumeKeyProcess = Runtime.getRuntime().exec("getevent");
-                    BufferedReader mReader = new BufferedReader(new InputStreamReader(listenVolumeKeyProcess.getInputStream()));
+        h1 = new Thread(() -> {
+            Process process = null;
+            try {
+                process = Runtime.getRuntime().exec("getevent");
+                listenVolumeKeyProcess = process;
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String inline;
-                    while ((inline = mReader.readLine()) != null) {
+                    while ((inline = reader.readLine()) != null) {
                         if (!listenVolumeKey) break;
                         if (inline.endsWith("0000 0000 00000000")) continue;
                         if (inline.endsWith("0001 0072 00000001") || inline.endsWith("0001 0073 00000001")) {
-
                             setDisplayPowerMode(getBuiltInDisplay(), POWER_MODE_NORMAL);
                         }
                     }
-                    mReader.close();
-                    listenVolumeKeyProcess.waitFor();
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        listenVolumeKeyProcess.destroyForcibly();
-                    } else {
-                        listenVolumeKeyProcess.destroy();
-                    }
-                } catch (Exception ignored) {
                 }
+                process.waitFor();
+            } catch (Exception ignored) {
+            } finally {
+                if (process != null) {
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        process.destroyForcibly();
+                    } else {
+                        process.destroy();
+                    }
+                }
+                listenVolumeKeyProcess = null;
+                listenVolumeKey = false;
             }
         });
         h1.start();
@@ -229,16 +244,23 @@ public class ScreenController {
             IBinder binder = new IScreenOff.Stub() {
                 @Override
                 public void setPowerMode(boolean turnOff) throws RemoteException {
-                    if (turnOff) {
-                        if (screenState == ScreenState.STATE_ON) {
-                            setDisplayPowerMode(getBuiltInDisplay(), POWER_MODE_OFF);
-//                            setDisplayPowerMode(getBuiltInDisplay(), POWER_MODE_NORMAL);
-                            screenState = ScreenState.STATE_SPECIAL;
-                        }
-                    } else {
-                        if (screenState == ScreenState.STATE_SPECIAL) {
-                            setDisplayPowerMode(getBuiltInDisplay(), POWER_MODE_NORMAL);
-                            screenState = ScreenState.STATE_ON;
+                    synchronized (STATE_LOCK) {
+                        if (turnOff) {
+                            if (screenState == ScreenState.STATE_ON) {
+                                if (setDisplayPowerMode(getBuiltInDisplay(), POWER_MODE_OFF)) {
+                                    screenState = ScreenState.STATE_SPECIAL;
+                                } else {
+                                    Log.e(TAG, "Failed to turn the screen off");
+                                }
+                            }
+                        } else {
+                            if (screenState == ScreenState.STATE_SPECIAL) {
+                                if (setDisplayPowerMode(getBuiltInDisplay(), POWER_MODE_NORMAL)) {
+                                    screenState = ScreenState.STATE_ON;
+                                } else {
+                                    Log.e(TAG, "Failed to turn the screen on");
+                                }
+                            }
                         }
                     }
                 }
@@ -250,7 +272,9 @@ public class ScreenController {
 
                 @Override
                 public void updateNowScreenState(boolean isScreenOn) throws RemoteException {
-                    screenState = isScreenOn ? ScreenState.STATE_ON : ScreenState.STATE_OFF;
+                    synchronized (STATE_LOCK) {
+                        screenState = isScreenOn ? ScreenState.STATE_ON : ScreenState.STATE_OFF;
+                    }
                 }
 
                 @Override
@@ -265,7 +289,7 @@ public class ScreenController {
             //把binder填到一个可以用Intent来传递的容器中
             BinderContainer binderContainer = new BinderContainer(binder);
             // 创建 Intent 对象，并将binder作为附加参数
-            intent = new Intent("intent.screenoff.sendBinder");
+            intent = new Intent("intent.screenoff.sendBinder").setPackage("com.tile.screenoff");
             intent.putExtra("binder", binderContainer);
 
             // 获取 IActivityManager 类
@@ -313,7 +337,7 @@ public class ScreenController {
             );
 
         } catch (Exception e) {
-
+            Log.e(TAG, "Failed to send the binder broadcast: " + e);
             return false;
         }
         return true;

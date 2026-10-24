@@ -3,7 +3,6 @@ package com.tile.screenoff;
 import static java.lang.Math.abs;
 
 import android.accessibilityservice.AccessibilityService;
-import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -25,6 +24,7 @@ import android.graphics.drawable.shapes.OvalShape;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -37,36 +37,43 @@ import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.ImageView;
 
+import androidx.core.content.ContextCompat;
+
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import java.util.Objects;
 
 public class GlobalService extends AccessibilityService implements SharedPreferences.OnSharedPreferenceChangeListener {
+
+    private static final String TAG = "GlobalService";
+    static volatile boolean binderConnected = false;
 
     private WindowManager windowManager;
     private WindowManager.LayoutParams params;
     private ImageView view;
     SharedPreferences sp;
-    private boolean exist = false, canmove, doubleTap, shake, volume, netControl;
+    private boolean exist = false, canmove, doubleTap, shake, volume;
+    private volatile boolean netControl;
     int size, sensity, scrOnKey, scrOffKey;
     private int SCREEN_WIDTH, SCREEN_HEIGHT;
+    private boolean lastUpright = true;
     OrientationEventListener listener;
-    IScreenOff iScreenOff = null;
+    private volatile IScreenOff iScreenOff = null;
+    private volatile IBinder controllerBinder;
 
-    public static boolean isScreenOffServiceRunning(Context context) {
-        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        if (activityManager == null) return false;
-        List<ActivityManager.RunningServiceInfo> runningServices = activityManager.getRunningServices(Integer.MAX_VALUE);
-        if (runningServices == null || runningServices.isEmpty()) return false;
-        for (ActivityManager.RunningServiceInfo serviceInfo : runningServices) {
-            if (GlobalService.class.getName().equals(serviceInfo.service.getClassName())) return true;
-        }
-        return false;
+    private final IBinder.DeathRecipient controllerDeathRecipient = () -> {
+        Log.w(TAG, "ScreenController binder died");
+        iScreenOff = null;
+        controllerBinder = null;
+        binderConnected = false;
+    };
+
+    public static boolean isScreenOffServiceRunning() {
+        return binderConnected;
     }
 
     final BroadcastReceiver myReceiver = new BroadcastReceiver() {
@@ -75,17 +82,29 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             if (intent == null || intent.getAction() == null) return;
             switch (intent.getAction()) {
                 case "intent.screenoff.sendBinder":
-                    BinderContainer binderContainer = intent.getParcelableExtra("binder");
+                    BinderContainer binderContainer = BinderContainer.fromIntent(intent);
                     if (binderContainer == null) break;
                     IBinder binder = binderContainer.getBinder();
                     if (binder == null || !binder.pingBinder()) break;
+                    if (controllerBinder == binder) break;
+                    if (controllerBinder != null) {
+                        try { controllerBinder.unlinkToDeath(controllerDeathRecipient, 0); } catch (Exception ignored) {}
+                    }
+                    iScreenOff = null;
+                    controllerBinder = null;
+                    binderConnected = false;
+                    try {
+                        binder.linkToDeath(controllerDeathRecipient, 0);
+                    } catch (RemoteException e) {
+                        break;
+                    }
+                    controllerBinder = binder;
                     iScreenOff = IScreenOff.Stub.asInterface(binder);
+                    binderConnected = true;
                     floatWindow();
                     break;
                 case Intent.ACTION_SCREEN_OFF:
-                    try {
-                        if (iScreenOff != null) iScreenOff.updateNowScreenState(false);
-                    } catch (Exception e) { Log.e("GlobalService", "Update state failed", e); }
+                    updateControllerState(false);
                     if (view != null) view.setKeepScreenOn(false);
                     if (listener != null) listener.disable();
                     if (exist && windowManager != null && view != null) {
@@ -94,16 +113,21 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
                     break;
                 case Intent.ACTION_SCREEN_ON:
                 case Intent.ACTION_USER_PRESENT:
-                    try {
-                        if (iScreenOff != null) iScreenOff.updateNowScreenState(true);
-                    } catch (Exception e) { Log.e("GlobalService", "Update state failed", e); }
+                    updateControllerState(true);
+                    if (view != null) view.setKeepScreenOn(false);
+                    if (listener != null) listener.disable();
                     break;
                 case "action.ScrOff":
                     if (intent.hasExtra("state")) screenoff(intent.getBooleanExtra("state", true));
                     else {
-                        try {
-                            if (iScreenOff != null) screenoff(iScreenOff.getNowScreenState() == 1);
-                        } catch (Exception ignored) {}
+                        IScreenOff service = iScreenOff;
+                        if (service != null) {
+                            try {
+                                screenoff(service.getNowScreenState() == 1);
+                            } catch (RemoteException e) {
+                                handleControllerLost();
+                            }
+                        }
                     }
                     break;
                 case "intent.screenoff.exit":
@@ -113,6 +137,28 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             }
         }
     };
+
+    private void updateControllerState(boolean screenOn) {
+        IScreenOff service = iScreenOff;
+        if (service == null) return;
+        try {
+            service.updateNowScreenState(screenOn);
+        } catch (RemoteException e) {
+            handleControllerLost();
+        }
+    }
+
+    private void handleControllerLost() {
+        IScreenOff service = iScreenOff;
+        iScreenOff = null;
+        binderConnected = false;
+        IBinder binder = controllerBinder;
+        controllerBinder = null;
+        if (binder != null) {
+            try { binder.unlinkToDeath(controllerDeathRecipient, 0); } catch (Exception ignored) {}
+        }
+        if (service != null) Log.w(TAG, "ScreenController connection lost");
+    }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent accessibilityEvent) {}
     @Override public void onInterrupt() {}
@@ -134,6 +180,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         scrOnKey = sharedPreferences.getInt("scrOnKey", 24);
         scrOffKey = sharedPreferences.getInt("scrOffKey", 25);
         netControl = sharedPreferences.getBoolean("net", false);
+        if (!shake && listener != null) listener.disable();
         if (netControl) startServer(); else stopServer();
         floatWindow();
     }
@@ -141,14 +188,24 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        // onServiceConnected can be called again after a reconnect; avoid duplicate listeners.
+        try { unregisterReceiver(myReceiver); } catch (Exception ignored) {}
+        if (sp != null) sp.unregisterOnSharedPreferenceChangeListener(this);
+        if (listener != null) listener.disable();
         sp = getSharedPreferences("s", 0);
         sensity = sp.getInt("sensity", 10);
         listener = new OrientationEventListener(this) {
             @Override
             public void onOrientationChanged(int orientation) {
-                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
-                boolean wake = ((orientation >= 360 - sensity || orientation <= sensity) || orientation >= 90 - sensity && orientation <= 90 + sensity) || orientation >= 180 - sensity && orientation <= 180 + sensity || orientation >= 270 - sensity && orientation <= 270 + sensity;
-                if (wake) { screenoff(false); this.disable(); }
+                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) {
+                    lastUpright = false;
+                    return;
+                }
+                boolean upright = isUpright(orientation);
+                if (upright && !lastUpright) {
+                    if (screenoff(false)) this.disable();
+                }
+                lastUpright = upright;
             }
         };
         windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
@@ -171,7 +228,7 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         shake = sp.getBoolean("shake", false); volume = sp.getBoolean("volume", false);
         scrOnKey = sp.getInt("scrOnKey", 24); scrOffKey = sp.getInt("scrOffKey", 25);
         netControl = sp.getBoolean("net", false);
-        if (netControl) startServer();
+        if (netControl) startServer(); else stopServer();
         
         view.setOnTouchListener(new View.OnTouchListener() {
             int lastX = 0, lastY = 0, paramX = 0, paramY = 0;
@@ -216,29 +273,74 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         filter.addAction(Intent.ACTION_SCREEN_OFF); filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_PRESENT); filter.addAction("action.ScrOff");
         filter.addAction("intent.screenoff.sendBinder"); filter.addAction("intent.screenoff.exit");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(myReceiver, filter, Context.RECEIVER_EXPORTED);
-        else registerReceiver(myReceiver, filter);
+        ContextCompat.registerReceiver(this, myReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
         sp.registerOnSharedPreferenceChangeListener(this);
     }
 
-    void screenoff(Boolean bb) {
+    private static int angleDistance(int a, int b) {
+        int distance = Math.abs(a - b) % 360;
+        return distance > 180 ? 360 - distance : distance;
+    }
+
+    private boolean isUpright(int orientation) {
+        return angleDistance(orientation, 0) <= sensity
+                || angleDistance(orientation, 90) <= sensity
+                || angleDistance(orientation, 180) <= sensity
+                || angleDistance(orientation, 270) <= sensity;
+    }
+
+    boolean screenoff(boolean turnOff) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            new Handler(Looper.getMainLooper()).post(() -> screenoff(turnOff));
+            return true;
+        }
+
+        IScreenOff service = iScreenOff;
+        if (service == null) return false;
         try {
-            if (iScreenOff == null || iScreenOff.getNowScreenState() == 0) return;
-            iScreenOff.setPowerMode(bb);
-            if (view != null) view.setKeepScreenOn(bb);
-            if (shake && bb && listener != null) listener.enable();
-        } catch (Exception e) { Log.e("GlobalService", "Screen control failed", e); }
+            int state = service.getNowScreenState();
+            if (turnOff) {
+                if (state != 1) return false;
+                service.setPowerMode(true);
+                if (service.getNowScreenState() == 1) {
+                    Log.w(TAG, "Screen off request was not applied");
+                    return false;
+                }
+                if (view != null) view.setKeepScreenOn(true);
+                if (shake && listener != null) {
+                    lastUpright = true;
+                    listener.enable();
+                }
+                return true;
+            } else {
+                if (state != 0 && state != 2) return false;
+                service.setPowerMode(false);
+                if (service.getNowScreenState() != 1) {
+                    Log.w(TAG, "Screen on request was not applied");
+                    return false;
+                }
+                if (view != null) view.setKeepScreenOn(false);
+                if (listener != null) listener.disable();
+                return true;
+            }
+        } catch (RemoteException e) {
+            handleControllerLost();
+            return false;
+        }
     }
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
-        if (!volume || event.getAction() == KeyEvent.ACTION_UP || iScreenOff == null) return super.onKeyEvent(event);
+        IScreenOff service = iScreenOff;
+        if (!volume || event.getAction() == KeyEvent.ACTION_UP || service == null) return super.onKeyEvent(event);
         try {
             final int keycode = event.getKeyCode();
-            final int nowState = iScreenOff.getNowScreenState();
+            final int nowState = service.getNowScreenState();
             if (keycode == scrOffKey && nowState == 1) { screenoff(true); return true; }
             if (keycode == scrOnKey && (nowState == 2 || nowState == 0)) { screenoff(false); return true; }
-        } catch (Exception e) { Log.e("GlobalService", "KeyEvent processing failed", e); }
+        } catch (RemoteException e) {
+            handleControllerLost();
+        }
         return super.onKeyEvent(event);
     }
 
@@ -281,30 +383,38 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
         exist = false;
         if (listener != null) listener.disable();
         if (sp != null) sp.unregisterOnSharedPreferenceChangeListener(this);
+        handleControllerLost();
+        binderConnected = false;
         stopServer();
         super.onDestroy();
     }
 
-    public static int port = 20000;
-    private SimpleTcpServer server;
+    public static final int port = 20000;
+    private volatile SimpleTcpServer server;
 
     private void startServer() {
-        if (server != null) return;
-        server = new SimpleTcpServer((data, socket) -> {
+        if (server != null && server.isRunning()) return;
+        SimpleTcpServer newServer = new SimpleTcpServer((data, socket) -> {
             HttpRequestParser parser = new HttpRequestParser();
             parser.add(data);
             HttpRequest request = parser.parse();
             if (request != null) handleRequest(request, socket);
         }, port);
-        server.start();
+        if (newServer.start()) {
+            server = newServer;
+        } else {
+            Log.e(TAG, "Could not start HTTP server on port " + port);
+        }
     }
 
     void stopServer() {
-        if (server != null) { server.stop(); server = null; }
+        SimpleTcpServer oldServer = server;
+        server = null;
+        if (oldServer != null) oldServer.stop();
     }
 
     private void handleRequest(HttpRequest request, Socket socket) {
-        if (server == null || !netControl) return;
+        if (!netControl) return;
         String target = request.getRequestTarget();
         Log.d("ScreenOffWeb", "Request: " + target);
         String cleanTarget = target.contains("?") ? target.substring(0, target.indexOf("?")) : target;
@@ -317,68 +427,83 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
             byte[] icon = getRoundedAppIcon();
             if (icon != null) sendPngResponse(socket, icon);
             else sendHtmlResponse(socket, "", "404 Not Found");
-        } else {
-            // Try serving from assets
-            String assetPath = cleanTarget.startsWith("/") ? cleanTarget.substring(1) : cleanTarget;
-            if (assetPath.isEmpty()) assetPath = "index.html";
-
-            byte[] assetData = loadBinary(assetPath);
-            if (assetData == null && !assetPath.contains(".")) {
-                // Try as directory with common index files
-                String[] indexFiles = {"index.js", "tslib.js", "lit-element.js", "lit-html.js", "tslib.es6.mjs"};
-                for (String idx : indexFiles) {
-                    String altPath = assetPath + (assetPath.endsWith("/") ? "" : "/") + idx;
-                    assetData = loadBinary(altPath);
-                    if (assetData != null) {
-                        assetPath = altPath;
-                        break;
-                    }
+        } else if (cleanTarget.equals("/stop")) {
+            sendHtmlResponse(socket, "Stopping service...", "200 OK");
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                IScreenOff service = iScreenOff;
+                if (service != null) {
+                    try { service.closeAndExit(); } catch (Exception ignored) {}
                 }
-            }
-
-            if (assetData != null) {
-                Log.d("ScreenOffWeb", "Serving: " + assetPath);
-                sendBinaryResponse(socket, assetData, getMimeType(assetPath));
+                stopServer();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) disableSelf();
+                else stopSelf();
+            }, 500);
+        } else if (cleanTarget.equals("/1") || cleanTarget.equals("/2")) {
+            if (iScreenOff == null) {
+                sendHtmlResponse(socket, "Service not connected", "503 Service Unavailable");
                 return;
             }
+            screenoff(cleanTarget.equals("/2"));
+            sendHtmlResponse(socket, "", "200 OK");
+        } else {
+            serveAsset(socket, cleanTarget);
+        }
+    }
 
-            try {
-                if (iScreenOff == null) { sendHtmlResponse(socket, "Service not connected", "503 Service Unavailable"); return; }
-                if (cleanTarget.equals("/1")) { iScreenOff.setPowerMode(false); sendHtmlResponse(socket, "", "200 OK"); }
-                else if (cleanTarget.equals("/2")) { iScreenOff.setPowerMode(true); sendHtmlResponse(socket, "", "200 OK"); }
-                else if (cleanTarget.equals("/stop")) {
-                    sendHtmlResponse(socket, "Stopping service...", "200 OK");
-                    new Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                        try { if (iScreenOff != null) iScreenOff.closeAndExit(); } catch (Exception ignored) {}
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) disableSelf();
-                        else stopSelf();
-                    }, 500);
+    private void serveAsset(Socket socket, String cleanTarget) {
+        String assetPath = cleanTarget.startsWith("/") ? cleanTarget.substring(1) : cleanTarget;
+        if (assetPath.isEmpty()) assetPath = "index.html";
+
+        byte[] assetData = loadBinary(assetPath);
+        if (assetData == null && !assetPath.contains(".")) {
+            String[] indexFiles = {"index.js", "tslib.js", "lit-element.js", "lit-html.js", "tslib.es6.mjs"};
+            for (String idx : indexFiles) {
+                String altPath = assetPath + (assetPath.endsWith("/") ? "" : "/") + idx;
+                assetData = loadBinary(altPath);
+                if (assetData != null) {
+                    assetPath = altPath;
+                    break;
                 }
-                else sendHtmlResponse(socket, build404Html(), "404 Not Found");
-            } catch (Exception ignored) {}
+            }
+        }
+
+        if (assetData != null) {
+            Log.d("ScreenOffWeb", "Serving: " + assetPath);
+            sendBinaryResponse(socket, assetData, getMimeType(assetPath));
+        } else {
+            sendHtmlResponse(socket, build404Html(), "404 Not Found");
         }
     }
 
     private String getMimeType(String path) {
-        String lowerPath = path.toLowerCase();
+        String lowerPath = path.toLowerCase(Locale.ROOT);
         if (lowerPath.endsWith(".html")) return "text/html; charset=UTF-8";
         if (lowerPath.endsWith(".js") || lowerPath.endsWith(".mjs")) return "application/javascript; charset=UTF-8";
         if (lowerPath.endsWith(".css")) return "text/css; charset=UTF-8";
         if (lowerPath.endsWith(".png")) return "image/png";
         if (lowerPath.endsWith(".ico")) return "image/x-icon";
-        if (lowerPath.endsWith(".ttf") || lowerPath.endsWith(".woff") || lowerPath.endsWith(".woff2")) return "font/ttf";
+        if (lowerPath.endsWith(".woff2")) return "font/woff2";
+        if (lowerPath.endsWith(".woff")) return "font/woff";
+        if (lowerPath.endsWith(".ttf")) return "font/ttf";
         if (lowerPath.endsWith(".json") || lowerPath.endsWith(".map")) return "application/json; charset=UTF-8";
         if (lowerPath.endsWith(".svg")) return "image/svg+xml; charset=UTF-8";
         return "application/octet-stream";
     }
 
+    private void sendResponse(Socket socket, byte[] data) {
+        SimpleTcpServer currentServer = server;
+        if (currentServer != null) currentServer.sendResponse(socket, data);
+    }
+
     private void sendBinaryResponse(Socket socket, byte[] data, String mimeType) {
-        String header = "HTTP/1.1 200 OK\r\nContent-Type: " + mimeType + "\r\nContent-Length: " + data.length + "\r\n\r\n";
-        byte[] hBytes = header.getBytes();
+        String header = "HTTP/1.1 200 OK\r\nContent-Type: " + mimeType
+                + "\r\nContent-Length: " + data.length
+                + "\r\nConnection: close\r\n\r\n";
+        byte[] hBytes = header.getBytes(StandardCharsets.UTF_8);
         byte[] output = new byte[hBytes.length + data.length];
         System.arraycopy(hBytes, 0, output, 0, hBytes.length);
         System.arraycopy(data, 0, output, hBytes.length, data.length);
-        server.sendResponse(socket, output);
+        sendResponse(socket, output);
     }
 
     private String buildStatusJson() {
@@ -443,46 +568,74 @@ public class GlobalService extends AccessibilityService implements SharedPrefere
     private String build404Html() { return loadHtml("404.html"); }
 
     private void sendHtmlResponse(Socket socket, String html, String responseCode) {
-        int length = (html != null) ? html.getBytes().length : 0;
-        String header = "HTTP/1.1 " + responseCode + "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: " + length + "\r\n\r\n";
-        server.sendResponse(socket, (header + (html != null ? html : "")).getBytes());
+        byte[] body = (html != null ? html : "").getBytes(StandardCharsets.UTF_8);
+        String header = "HTTP/1.1 " + responseCode + "\r\nContent-Type: text/html; charset=UTF-8"
+                + "\r\nContent-Length: " + body.length
+                + "\r\nConnection: close\r\n\r\n";
+        byte[] hBytes = header.getBytes(StandardCharsets.UTF_8);
+        byte[] output = new byte[hBytes.length + body.length];
+        System.arraycopy(hBytes, 0, output, 0, hBytes.length);
+        System.arraycopy(body, 0, output, hBytes.length, body.length);
+        sendResponse(socket, output);
     }
 
     private void sendJsonResponse(Socket socket, String json) {
-        int length = json.getBytes().length;
-        String header = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8\r\nContent-Length: " + length + "\r\n\r\n";
-        server.sendResponse(socket, (header + json).getBytes());
+        byte[] body = json.getBytes(StandardCharsets.UTF_8);
+        String header = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8"
+                + "\r\nContent-Length: " + body.length
+                + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+        byte[] hBytes = header.getBytes(StandardCharsets.UTF_8);
+        byte[] output = new byte[hBytes.length + body.length];
+        System.arraycopy(hBytes, 0, output, 0, hBytes.length);
+        System.arraycopy(body, 0, output, hBytes.length, body.length);
+        sendResponse(socket, output);
     }
 
     private void sendPngResponse(Socket socket, byte[] png) {
-        String header = "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: " + png.length + "\r\n\r\n";
-        byte[] hBytes = header.getBytes(); byte[] output = new byte[hBytes.length + png.length];
-        System.arraycopy(hBytes, 0, output, 0, hBytes.length); System.arraycopy(png, 0, output, hBytes.length, png.length);
-        server.sendResponse(socket, output);
+        sendBinaryResponse(socket, png, "image/png");
     }
 
     private String loadHtml(String fileName) {
-        byte[] binary = loadBinary(fileName); return (binary == null) ? null : new String(binary);
+        byte[] binary = loadBinary(fileName);
+        return (binary == null) ? null : new String(binary, StandardCharsets.UTF_8);
     }
 
     private byte[] getRoundedAppIcon() {
         try {
             Drawable d = getPackageManager().getApplicationIcon(getPackageName());
-            Bitmap b;
-            if (d instanceof BitmapDrawable) b = ((BitmapDrawable) d).getBitmap();
-            else {
-                b = Bitmap.createBitmap(d.getIntrinsicWidth(), d.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-                Canvas c = new Canvas(b); d.setBounds(0, 0, c.getWidth(), c.getHeight()); d.draw(c);
+            if (d == null) return null;
+
+            int width = d.getIntrinsicWidth();
+            int height = d.getIntrinsicHeight();
+            if (width <= 0 || height <= 0) {
+                width = 192;
+                height = 192;
             }
+
+            Bitmap b;
+            if (d instanceof BitmapDrawable && ((BitmapDrawable) d).getBitmap() != null) {
+                b = ((BitmapDrawable) d).getBitmap();
+            } else {
+                b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                Canvas c = new Canvas(b);
+                d.setBounds(0, 0, c.getWidth(), c.getHeight());
+                d.draw(c);
+            }
+
             int s = Math.min(b.getWidth(), b.getHeight());
+            if (s <= 0) return null;
             Bitmap out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(out); Paint p = new Paint(); p.setAntiAlias(true);
+            Canvas canvas = new Canvas(out);
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             canvas.drawRoundRect(new RectF(0, 0, s, s), s * 0.2f, s * 0.2f, p);
             p.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
             canvas.drawBitmap(b, null, new Rect(0, 0, s, s), p);
-            ByteArrayOutputStream os = new ByteArrayOutputStream(); out.compress(Bitmap.CompressFormat.PNG, 100, os);
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            out.compress(Bitmap.CompressFormat.PNG, 100, os);
             return os.toByteArray();
-        } catch (Exception e) { return null; }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private byte[] loadBinary(String fileName) {

@@ -38,4 +38,8 @@
     <string name="tile">全局控制</string>
     <string name="service_closed">息屏運行服務已關閉</string>
     <string name="net_ctl">局域網控製亮滅屏</string>
+    <string name="stop_service">停止服務</string>
+    <string name="shell_logs">系統日誌</string>
+    <string name="view_log_file">查看日誌文件</string>
+    <string name="clear_logs">清除日誌</string>
 </resources>
